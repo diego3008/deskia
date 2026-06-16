@@ -1,7 +1,8 @@
 {
     "dependencies": ["."],
     "graphs": {
-        "email_support": "./src/graph/email_graph.py:emailSupportGraph"
+        "test_graph": "./src/graph/test_graph.py:test_graph"
     },
-    "env": ".env"
+    "env": ".env",
+    "python_path": "."
 }
