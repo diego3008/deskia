@@ -15,7 +15,7 @@ def call_llm(state: State) -> dict:
         "messages": [response],
         "step_log": ["call_llm"],
     }
- 
+
  
 def summarise(state: State) -> dict:
     """Log the last assistant message length as a sanity check."""
