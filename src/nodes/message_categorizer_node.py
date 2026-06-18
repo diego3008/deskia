@@ -9,7 +9,8 @@ def message_categorizer_node(state: MessageGraphState):
 
     if not body:
         state['message_category'] = "no message"
-    
+        return state
+
     result = message_categorizer_agent().invoke({"message": body})
 
     state['message_category'] = result.category.value
