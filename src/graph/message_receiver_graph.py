@@ -14,16 +14,13 @@ LANGSMITH_API_KEY = os.getenv("LANGSMITH_API_KEY")
 class TelegramSupportGraph:
 
     def __init__(self):
-        self.llm_with_tools = ChatAnthropic(
-            model="claude-haiku-4-5-20251001", temperature=0
-        ).bind_tools(messages_tools)
 
         workflow = StateGraph(MessageGraphState)
 
         workflow.add_node("message_listener", NODES["message_listener"])
         workflow.add_node("category", NODES["message_categorizer"])
         workflow.add_node("message_writer", NODES["message_writer"])
-        workflow.add_node("inquiry_node", self.inquiry_node)
+        workflow.add_node("inquiry_node", NODES["inquiry"])
         workflow.add_node("message_tools", ToolNode(messages_tools))
         workflow.add_node("fallback_node", NODES["fallback"])
         workflow.add_edge(START, "message_listener")
@@ -62,10 +59,6 @@ class TelegramSupportGraph:
         category = state["message_category"]
         valid_categories = {"inquiry", "customer_complaint", "customer_feedback", "greeting"}
         return category if category in valid_categories else "unrelated"
-
-    def inquiry_node(self, state: MessageGraphState):
-        response = self.llm_with_tools.invoke(state["messages"])
-        return {"messages": [response]}
 
 
 message_graph = TelegramSupportGraph().graph
