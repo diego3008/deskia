@@ -1,24 +1,29 @@
-CATEGORIZER_TASK = """Your task is to analyze incoming messages and classify them into exactly one of the following categories:
+CATEGORIZER_TASK = """Your task is to analyze the latest incoming message in context of the conversation and classify it into exactly one of the following categories:
 
-- **inquiry**: The message is asking about a product or service (features, pricing, availability, etc.)
-- **customer_complaint**: The message expresses dissatisfaction, reports a problem, or requests a fix.
-- **customer_feedback**: The message shares an opinion, suggestion, or experience about a product or service.
-- **unrelated**: The message does not relate to any product or service.
+- **inquiry**: Asking about a product, service, availability, pricing, or wanting to book/schedule something.
+- **confirmation**: Confirming, agreeing, or responding positively to a previous question (e.g. "yes", "sure", "ok", "go ahead", "sounds good").
+- **cancellation**: Declining, disagreeing, or wanting to stop/cancel something (e.g. "no", "cancel", "never mind", "don't book it").
+- **customer_complaint**: Expresses dissatisfaction, reports a problem, or requests a fix.
+- **customer_feedback**: Shares an opinion, suggestion, or experience.
+- **greeting**: A greeting with no other intent (e.g. "hi", "hello").
+- **unrelated**: Does not relate to any product, service, or ongoing conversation.
 
 ## Rules
 - Return only one category per message.
+- Always consider the conversation history to understand the intent of short messages like "yes", "no", "ok".
+- A short affirmative after the agent asked a question is ALWAYS a confirmation, never unrelated.
 - If the message could fit multiple categories, choose the most dominant intent.
-- Ignore the tone or language of the message — focus only on intent.
 
-## Message to categorize
+## Conversation history (last 6 messages for context)
+{history}
+
+## Latest message to categorize
 {message}
 """
 
 WRITER_TASK = """You are composing a reply to a customer message.
 
 ## Inputs
-- Message category: {message_category}
-- First message in this conversation: {is_first_message}
 - Customer message: {message_content}
 
 ## Greeting rule

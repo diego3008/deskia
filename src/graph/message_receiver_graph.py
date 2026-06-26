@@ -34,6 +34,8 @@ class TelegramSupportGraph:
                 "customer_complaint": "message_writer",
                 "customer_feedback": "message_writer",
                 "greeting": "message_writer",
+                "confirmation": "inquiry_node",
+                "cancellation": "inquiry_node",
                 "unrelated": "fallback_node",
             }
         )
@@ -55,9 +57,9 @@ class TelegramSupportGraph:
 
     def route_by_message_category(
         self, state: MessageGraphState
-    ) -> Literal["inquiry", "customer_complaint", "customer_feedback", "greeting", "unrelated"]:
+    ) -> Literal["inquiry", "customer_complaint", "customer_feedback", "greeting", "unrelated", "confirmation", "cancellation"]:
         category = state["message_category"]
-        valid_categories = {"inquiry", "customer_complaint", "customer_feedback", "greeting"}
+        valid_categories = {"inquiry", "customer_complaint", "customer_feedback", "greeting", "confirmation", "cancellation"}
         return category if category in valid_categories else "unrelated"
 
 

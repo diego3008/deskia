@@ -13,7 +13,7 @@ You have two tools available:
 - create_appointment: books the appointment once availability is confirmed
 
 Follow this process:
-1. If the user has provided a business_id, date, and time, call check_available_appointments first.
+1. If the user has provided a date, and time, call check_available_appointments first.
 2. If the requested time IS available:
    - If the user already clearly wants to book it (e.g. they asked to "book" or "schedule" 
      an appointment, not just "check"), call create_appointment immediately to complete the booking, 
@@ -27,16 +27,22 @@ Keep responses concise and friendly, suitable for a chat conversation. Use clean
 the messages, don't use special characters in the response.
 """
 
+
 def inquiry_node(state: MessageGraphState):
-        
-        
-        llm = ChatAnthropic(
-            model="claude-haiku-4-5-20251001", temperature=0
-        )
 
-        llm_with_tools = llm.bind_tools(messages_tools)
-        messages = [SystemMessage(content=INQUIRY_SYSTEM_PROMPT)] + state["messages"]
+      business_id = state["business_id"]
 
-        response = llm_with_tools.invoke(messages)
+      llm = ChatAnthropic(
+         model="claude-haiku-4-5-20251001", temperature=0
+      )
 
-        return {"messages": [response]}
+      
+      llm_with_tools = llm.bind_tools(messages_tools)
+
+      messages = [SystemMessage(
+         content=INQUIRY_SYSTEM_PROMPT)] + state["messages"]
+
+      response = llm_with_tools.invoke(messages,
+                           config={"configurable": {"business_id": str(business_id)}})
+
+      return {"messages": [response]}

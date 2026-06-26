@@ -85,3 +85,4 @@ ipython_config.py
 chroma_db/
 .langgraph_api
 .DS_Store
+docs/superpowers/
