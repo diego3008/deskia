@@ -1,4 +1,5 @@
 from typing import Annotated, List, TypedDict
+from uuid import UUID
 
 from langgraph.graph import add_messages
 from pydantic import BaseModel
@@ -32,3 +33,4 @@ class MessageGraphState(TypedDict):
     current_message: str
     message_category: str
     message_response: str
+    business_id: UUID
