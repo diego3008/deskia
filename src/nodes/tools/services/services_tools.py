@@ -104,16 +104,15 @@ async def create_appointment(
 @tool
 async def reschedule_appointment(
     appointment: AppointmentInput,
+    tool_call_id: Annotated[str, InjectedToolCallId],
     state: Annotated[dict, InjectedState] = None,
 ):
     """Reschedule the customer's existing appointment to a new date and time.
-    Call this only after the appointment to move has been identified (find_customer_appointment)
-    and the new slot has been confirmed available (check_available_appointments).
-
+    Only call this after find_customer_appointment has located the appointment AND
+    check_available_appointments has confirmed the new slot.
         Args:
-        appointment: An AppointmentInput with the NEW starts_at and ends_at for the appointment.
+        appointment: An AppointmentInput with the NEW starts_at and ends_at.
     """
-    business_id = state["business_id"]
     active = state.get("active_appointment") or {}
     appointment_id = active.get("id")
     if not appointment_id:
@@ -121,6 +120,12 @@ async def reschedule_appointment(
             "No appointment is selected to reschedule. "
             "Call find_customer_appointment first to locate the customer's appointment."
         )
+    if not _slot_confirmed(state, appointment.starts_at):
+        return (
+            "Please call check_available_appointments for the new date and time and "
+            "confirm it is available before rescheduling."
+        )
+    business_id = state["business_id"]
     try:
         # NOTE: confirm this endpoint/verb/payload against the API
         url = f"{API_URL}/appointments/{appointment_id}/reschedule"
@@ -132,16 +137,20 @@ async def reschedule_appointment(
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.patch(url, json=payload)
         resp.raise_for_status()
-        return resp.json()
+        updated = resp.json()
     except Exception as ex:
         return f"There was an error rescheduling the appointment: {ex}"
 
+    return Command(
+        update={
+            "active_appointment": None,
+            "confirmed_slot": None,
+            "messages": [
+                ToolMessage(content=f"Appointment rescheduled: {updated}", tool_call_id=tool_call_id)
+            ],
+        }
+    )
 
-async def cancel_appointment():
-    pass
-
-async def list_customer_appointments() :
-    pass
 
 @tool
 async def find_customer_appointment(
