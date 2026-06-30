@@ -8,8 +8,7 @@ from src.nodes.tools.services.services_tools import (
 )
 
 
-# Union of every tool any stage can bind (+ create_appointment for the booking path).
-# The ToolNode must be able to execute anything get_tools_for_stage() can offer.
+# All four services tools, bound every turn (ReAct loop; ordering enforced by per-tool guards).
 tools = [
     find_customer_appointment,
     check_available_appointments,

@@ -17,8 +17,5 @@ NODES = {
 }
 
 SERVICES_REQUEST_NODES = {
-    "services_request_node": services_request_node,
-
-    "fallback": fallback_node
-
+    "services_request_node": services_request_node
 }
