@@ -2,8 +2,8 @@ from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import SystemMessage
 from dotenv import load_dotenv
 
-from src.state import ServicesRequestState
-from src.nodes.tools.services.services_tools import create_appointment, check_available_appointments, reschedule_appointment, cancel_appointment, list_customer_appointments, find_customer_appointment
+from src.state import MessageGraphState
+from src.nodes.tools.services import tools
 
 load_dotenv()
 
@@ -43,22 +43,14 @@ conversation. Use clean formats for the messages, don't use special characters i
 """
 
 
-def services_request_node(state: ServicesRequestState):
-
-    stage = state.get("flow_stage", "awaiting_email")
-    tools = get_tools_for_stage(stage)
+def services_request_node(state: MessageGraphState):
+    business_id = state["business_id"]
 
     llm = ChatAnthropic(model="claude-haiku-4-5-20251001", temperature=0)
-    llm_with_tools = llm.bind_tools(tools) if tools else llm
+    llm_with_tools = llm.bind_tools(tools)
 
-    response = llm_with_tools.invoke([SystemMessage(content=SERVICES_REQUEST_SYSTEM_PROMPT)] + state["messages"])
+    messages = [SystemMessage(content=SERVICES_REQUEST_SYSTEM_PROMPT)] + state["messages"]
+    response = llm_with_tools.invoke(
+        messages, config={"configurable": {"business_id": str(business_id)}}
+    )
     return {"messages": [response]}
-
-
-def get_tools_for_stage(stage: str) -> list:
-    return {
-        "awaiting_email": [find_customer_appointment],
-        "awaiting_new_time": [check_available_appointments],
-        "ready_to_reschedule": [reschedule_appointment],
-        "done": [],
-    }.get(stage, [find_customer_appointment])
