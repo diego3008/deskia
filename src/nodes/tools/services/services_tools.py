@@ -7,12 +7,12 @@ import os
 from typing import Optional
 
 from langchain_core.messages import ToolMessage
+from langchain_core.tools import tool, InjectedToolCallId
 from langgraph.prebuilt import InjectedState
-from langgraph_sdk.schema import Command
+from langgraph.types import Command
 from typing_extensions import Annotated
 
 import httpx
-from langchain_core.tools import tool
 
 from src.helpers import helpers
 from src.models.appointments import AppointmentCreate, AppointmentInput
@@ -134,40 +134,53 @@ async def list_customer_appointments() :
 
 @tool
 async def find_customer_appointment(
-    email: str,
-    state: Annotated[dict, InjectedState],
+    tool_call_id: Annotated[str, InjectedToolCallId],
+    appointment_date: Optional[str] = None,
+    state: Annotated[dict, InjectedState] = None,
 ):
-    """Look up the customer by email and check if they have an upcoming appointment.
-    This MUST be called first, before checking availability or rescheduling.
-
-    Args:
-        email: The customer's email address, provided by the user.
+    """Look up the identified customer's upcoming appointment(s) for this business.
+    Call this first when the customer wants to reschedule. The customer is already
+    identified, so no email is needed.
+        Args:
+        appointment_date: Optional ISO date (e.g. 2026-07-01) to pick a specific
+            appointment when the customer has more than one. Ask the user which date
+            first, then call again with it.
     """
     business_id = state["business_id"]
+    customer_id = state.get("customer_id") or (state.get("customer") or {}).get("id")
+    if not customer_id:
+        return "The customer is not identified yet, so I cannot look up their appointments."
     try:
-        url = f"{API_URL}/customers/lookup"
-        req_url = helpers["url_query"](url, {"email": email, "business_id": business_id})
+        # NOTE: confirm this lists a customer's appointments against the API
+        url = f"{API_URL}/appointments"
+        req_url = helpers["url_query"](url, {"customer_id": customer_id, "business_id": business_id})
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.get(req_url)
-        data = resp.json()
+        resp.raise_for_status()
+        appointments = resp.json()
     except Exception as ex:
-        return f"There was an error looking up the customer: {ex}"
+        return f"There was an error looking up the customer's appointments: {ex}"
 
-    appointment = data.get("upcoming_appointment")
-    if not appointment:
-        # No upcoming appointment -> stay in this stage, don't advance
-        return Command(update={
-            "messages": [ToolMessage(
-                content="No upcoming appointment found for that email. Ask the user to double check it.",
-            )],
-        })
+    if not appointments:
+        return "I could not find any upcoming appointments for this customer."
 
-    return Command(update={
-        "customer": data["customer"],
-        "active_appointment": appointment,
-        "flow_stage": "awaiting_new_time",
-        "messages": [ToolMessage(
-            content=f"Found appointment {appointment['id']} on {appointment['starts_at']}. "
-                    f"Ask the user for the new date/time they'd like.",
-        )],
-    })
+    if appointment_date:
+        matches = [a for a in appointments if str(a.get("starts_at", "")).startswith(appointment_date[:10])]
+        appointments = matches or appointments
+
+    if len(appointments) > 1:
+        return (
+            f"This customer has multiple upcoming appointments: {appointments}. "
+            "Ask the user which date they mean, then call find_customer_appointment "
+            "again with that date in appointment_date."
+        )
+
+    appt = appointments[0]
+    return Command(
+        update={
+            "active_appointment": appt,
+            "messages": [
+                ToolMessage(content=f"Found appointment: {appt}", tool_call_id=tool_call_id)
+            ],
+        }
+    )
