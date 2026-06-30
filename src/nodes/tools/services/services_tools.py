@@ -83,6 +83,7 @@ async def create_appointment(
         customer_id=customer_id,
     )
     try:
+        # NOTE: the API must atomically re-validate availability and reject conflicts; confirmed_slot is only a UX gate, not a concurrency guarantee.
         url = f"{API_URL}/appointments/book"
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(url, json=full_appointment.model_dump(mode="json"))
@@ -127,6 +128,7 @@ async def reschedule_appointment(
         )
     business_id = state["business_id"]
     try:
+        # NOTE: the API must atomically re-validate availability and reject conflicts; confirmed_slot is only a UX gate, not a concurrency guarantee.
         # NOTE: confirm this endpoint/verb/payload against the API
         url = f"{API_URL}/appointments/{appointment_id}/reschedule"
         payload = {

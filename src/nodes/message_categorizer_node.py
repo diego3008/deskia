@@ -29,6 +29,7 @@ def message_categorizer_node(state: MessageGraphState):
         "history": history  # ← pass history
     })
 
+    prev_flow = state.get('active_flow')
     category = result.category.value
     state['message_category'] = category
 
@@ -36,7 +37,14 @@ def message_categorizer_node(state: MessageGraphState):
     # a name) stay in the flow even if the categorizer mislabels them.
     if category in TOPIC_CHANGE_CATEGORIES:
         state['active_flow'] = None
-    elif category in SERVICE_CATEGORIES or state.get('active_flow') == "booking":
+    elif category in SERVICE_CATEGORIES or prev_flow == "booking":
         state['active_flow'] = "booking"
+
+    # C1: when a brand-new service flow starts (not a mid-flow continuation),
+    # drop any stale appointment/slot gates left from an abandoned earlier flow.
+    # Within-flow staleness is backstopped by the API re-validating availability.
+    if category == "service_request" and prev_flow != "booking":
+        state['active_appointment'] = None
+        state['confirmed_slot'] = None
 
     return state
