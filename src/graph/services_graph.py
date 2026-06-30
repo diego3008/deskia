@@ -1,7 +1,9 @@
+from langgraph.graph import END, START, StateGraph
+from langgraph.prebuilt import ToolNode, tools_condition
 
-from langgraph.graph import StateGraph
-
-from src.state import MessageGraphState
+from src.nodes import SERVICES_REQUEST_NODES
+from src.nodes.tools.services import tools
+from src.state import ServicesRequestState
 
 
 class ServicesGraph:
@@ -11,9 +13,20 @@ class ServicesGraph:
 
     def __init__(self):
         
-        workflow = StateGraph(MessageGraphState)
+        workflow = StateGraph(ServicesRequestState)
+        workflow.add_node("services_request_node", SERVICES_REQUEST_NODES["services_request_node"])
+        workflow.add_node("tools", ToolNode(tools))
+        workflow.add_edge(START, "services_request_node")
+        workflow.add_conditional_edges(
+            "services_request_node",
+            tools_condition,
+            {
+                "tools": "tools", 
+                END: END
+            } 
+        )
+        workflow.add_edge("tools", "services_request_node")
         
-
-        graph = workflow.compile()
+        self.graph = workflow.compile()
 
 services_graph = ServicesGraph().graph

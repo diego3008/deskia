@@ -1,12 +1,11 @@
 import os
 from typing import Literal
 from langgraph.graph import END, START, StateGraph
-from langgraph.prebuilt import ToolNode, tools_condition
 
 from src.nodes import NODES
 from src.state import MessageGraphState
-from src.nodes.tools import messages_tools
 from src.graph.customer_graph import customer_graph
+from src.graph.services_graph import services_graph
 
 LANGSMITH_API_KEY = os.getenv("LANGSMITH_API_KEY")
 
@@ -24,8 +23,7 @@ class TelegramSupportGraph:
         workflow.add_node("category", NODES["message_categorizer"])
         workflow.add_node("message_writer", NODES["message_writer"])
         workflow.add_node("customer_subgraph", customer_graph)
-        workflow.add_node("enquiry_node", NODES["enquiry"])
-        workflow.add_node("message_tools", ToolNode(messages_tools))
+        workflow.add_node("services_subgraph", services_graph)
         workflow.add_node("fallback_node", NODES["fallback"])
 
         workflow.add_edge(START, "message_listener")
@@ -36,7 +34,7 @@ class TelegramSupportGraph:
             self.route_by_category,
             {
                 "customer_subgraph": "customer_subgraph",
-                "enquiry_node": "enquiry_node",
+                "services_subgraph": "services_subgraph",
                 "message_writer": "message_writer",
                 "fallback_node": "fallback_node",
             },
@@ -46,31 +44,20 @@ class TelegramSupportGraph:
             "customer_subgraph",
             self.route_after_customer,
             {
-                "enquiry_node": "enquiry_node",
+                "services_subgraph": "services_subgraph",
                 END: END,
             },
         )
 
-        workflow.add_conditional_edges(
-            "enquiry_node",
-            tools_condition,
-            {
-                "tools": "message_tools",
-                END: END,
-            },
-        )
-
-        workflow.add_edge("message_tools", "enquiry_node")
+        workflow.add_edge("services_subgraph", END)
         workflow.add_edge("fallback_node", END)
         workflow.add_edge("message_writer", END)
 
         self.graph = workflow.compile()
 
-        
-
     def route_by_category(
         self, state: MessageGraphState
-    ) -> Literal["customer_subgraph", "enquiry_node", "message_writer", "fallback_node"]:
+    ) -> Literal["customer_subgraph", "services_subgraph", "message_writer", "fallback_node"]:
         category = state.get("message_category")
 
         if category in WRITER_CATEGORIES:
@@ -79,15 +66,15 @@ class TelegramSupportGraph:
         if state.get("active_flow") == "booking" or category in SERVICE_CATEGORIES:
             if state.get("customer") is None:
                 return "customer_subgraph"
-            return "enquiry_node"
+            return "services_subgraph"
 
         return "fallback_node"
 
     def route_after_customer(
         self, state: MessageGraphState
-    ) -> Literal["enquiry_node", "__end__"]:
+    ) -> Literal["services_subgraph", "__end__"]:
         if state.get("customer") is not None:
-            return "enquiry_node"
+            return "services_subgraph"
         return END
 
 

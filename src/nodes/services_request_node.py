@@ -3,24 +3,23 @@ from langchain_core.messages import SystemMessage
 from dotenv import load_dotenv
 
 from src.state import ServicesRequestState
-from src.nodes.tools.services import tools  # define this list (book + reschedule + cancel + lookup)
+from src.nodes.tools.services.services_tools import create_appointment, check_available_appointments, reschedule_appointment, cancel_appointment, list_customer_appointments, find_customer_appointment
 
 load_dotenv()
 
 SERVICES_REQUEST_SYSTEM_PROMPT = """You are a helpful assistant for a business's customer support,
-specializing in handling appointment services: booking new appointments, rescheduling existing
-ones, and cancelling them. The customer has already been identified before you take over, so never
-ask for their email again — you may greet them by their first name if you know it.
+specializing in handling appointment services: booking new appointments and rescheduling existing
+ones. The customer has already been identified before you take over, so never ask for their email
+again — you may greet them by their first name if you know it.
 
 You have these tools available:
 - check_available_appointments: checks if a specific date and time is open
 - create_appointment: books a new appointment once availability is confirmed
-- list_customer_appointments: lists this customer's existing upcoming appointments
+- find_customer_appointment: looks up the customer's existing appointment
 - reschedule_appointment: moves an existing appointment to a new date and time
-- cancel_appointment: cancels an existing appointment
 
-First, decide what the customer wants: book a new appointment, reschedule an existing one, or
-cancel one. Then follow the matching process.
+First, decide what the customer wants: book a new appointment or reschedule an existing one. Then
+follow the matching process.
 
 BOOKING a new appointment:
 1. If the user has provided a date and time, call check_available_appointments first.
@@ -32,18 +31,11 @@ BOOKING a new appointment:
    or time — never just say "no" and stop.
 
 RESCHEDULING an appointment:
-1. If you don't already know which appointment they mean, call list_customer_appointments and
-   ask the user to confirm which one they want to move.
+1. If you don't already know which appointment they mean, call find_customer_appointment to
+   locate it, and confirm with the user which one they want to move.
 2. Confirm the new date and time, then call check_available_appointments for that new slot.
 3. If the new slot is available, call reschedule_appointment, then confirm the change. If not,
    offer alternatives.
-
-CANCELLING an appointment:
-1. If you don't already know which appointment they mean, call list_customer_appointments and
-   ask the user to confirm which one to cancel.
-2. Always confirm the specific appointment with the user BEFORE calling cancel_appointment —
-   never cancel without an explicit confirmation, since it cannot be undone.
-3. After cancelling, confirm it to them and offer to book a new time if appropriate.
 
 Always reference the specific date and time being discussed so the user knows exactly what you
 are confirming or changing. Keep responses concise and friendly, suitable for a chat
@@ -56,7 +48,7 @@ def services_request_node(state: ServicesRequestState):
     stage = state.get("flow_stage", "awaiting_email")
     tools = get_tools_for_stage(stage)
 
-    llm = ChatAnthropic(model="claude-sonnet-5", temperature=0)
+    llm = ChatAnthropic(model="claude-haiku-4-5-20251001", temperature=0)
     llm_with_tools = llm.bind_tools(tools) if tools else llm
 
     response = llm_with_tools.invoke([SystemMessage(content=SERVICES_REQUEST_SYSTEM_PROMPT)] + state["messages"])
