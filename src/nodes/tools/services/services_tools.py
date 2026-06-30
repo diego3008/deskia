@@ -1,7 +1,3 @@
-
-
-
-
 from datetime import datetime
 import os
 from typing import Optional
@@ -16,8 +12,6 @@ import httpx
 
 from src.helpers import helpers
 from src.models.appointments import AppointmentCreate, AppointmentInput
-
-from src.models.appointments import AppointmentCreate
 
 
 API_URL = os.getenv("DESKIA_API_URL")
