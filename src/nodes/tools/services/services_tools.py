@@ -22,6 +22,12 @@ from src.models.appointments import AppointmentCreate
 
 API_URL = os.getenv("DESKIA_API_URL")
 
+
+def _slot_confirmed(state: dict, starts_at: datetime) -> bool:
+    slot = state.get("confirmed_slot") or {}
+    return slot.get("starts_at") == starts_at.isoformat()
+
+
 @tool
 async def check_available_appointments(
     tool_call_id: Annotated[str, InjectedToolCallId],
@@ -61,40 +67,44 @@ async def check_available_appointments(
 @tool
 async def create_appointment(
     appointment: AppointmentInput,
+    tool_call_id: Annotated[str, InjectedToolCallId],
     state: Annotated[dict, InjectedState] = None,
-
-    ):
-    """
-    This tool handles appointment creation when the date provided
-    by the user is available.
-    ...
+):
+    """Books a new appointment. Only call this after check_available_appointments
+    has confirmed the requested slot is available.
         Args:
-        appointment: An object of type AppointmentInput...
-        Fields of AppointmentInput:
-        starts_at: ...
-        ends_at: ...
+        appointment: An AppointmentInput with starts_at and ends_at.
     """
-    business_id = state["business_id"]  # read directly from state
-    customer_id = state.get("customer", {}).get("id")  # read directly from state
-    full_appointment =  AppointmentCreate(
-            business_id=business_id,
-            starts_at=appointment.starts_at,
-            ends_at=appointment.ends_at,
-            customer_id=customer_id
+    if not _slot_confirmed(state, appointment.starts_at):
+        return (
+            "Please call check_available_appointments for this exact date and time "
+            "and confirm it is available before booking."
         )
+    business_id = state["business_id"]
+    customer_id = state.get("customer_id") or (state.get("customer") or {}).get("id")
+    full_appointment = AppointmentCreate(
+        business_id=business_id,
+        starts_at=appointment.starts_at,
+        ends_at=appointment.ends_at,
+        customer_id=customer_id,
+    )
     try:
-        url = f"{API_URL}/appointments/book" 
-        
-
+        url = f"{API_URL}/appointments/book"
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(url, json=full_appointment.model_dump(mode="json"))
-
         resp.raise_for_status()
-        
-
-        return resp.json()
+        created = resp.json()
     except Exception as ex:
         return f"There was an error creating appointment: {ex}"
+
+    return Command(
+        update={
+            "confirmed_slot": None,
+            "messages": [
+                ToolMessage(content=f"Appointment booked: {created}", tool_call_id=tool_call_id)
+            ],
+        }
+    )
 
 
 @tool
