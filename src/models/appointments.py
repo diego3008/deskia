@@ -23,6 +23,9 @@ class AppointmentCreate(BaseModel):
             "(e.g. 1 hour after starts_at) unless context suggests otherwise."
         )
     )
+    customer_id: UUID = Field(
+        description="The UUID of the customer for whom the appointment is being created."
+    )
 
 class AppointmentInput(BaseModel):
     starts_at: datetime = Field(

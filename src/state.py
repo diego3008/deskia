@@ -1,4 +1,5 @@
-from typing import Annotated, List, TypedDict
+from typing import Annotated, List, Optional, TypedDict
+from typing_extensions import Literal
 from uuid import UUID
 
 from langgraph.graph import add_messages
@@ -34,3 +35,8 @@ class MessageGraphState(TypedDict):
     message_category: str
     message_response: str
     business_id: UUID
+    customer: dict | None
+    active_flow: str | None
+    customer_id: UUID | None
+    active_appointment: dict | None
+    confirmed_slot: dict | None

@@ -6,7 +6,7 @@ from src.nodes.message_writer_node import message_writer_node
 from src.state import MessageGraphState
 
 
-def _make_state(messages, current_message="hello", message_category="inquiry"):
+def _make_state(messages, current_message="hello", message_category="enquiry"):
     return MessageGraphState(
         messages=messages,
         current_message=current_message,
@@ -26,7 +26,7 @@ def test_first_message_passes_is_first_true(mock_factory):
 
     mock_chain.invoke.assert_called_once_with({
         "message_content": "hello",
-        "message_category": "inquiry",
+        "message_category": "enquiry",
         "is_first_message": True,
     })
 

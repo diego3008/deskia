@@ -5,7 +5,7 @@ from src.state import MessageGraphState
 from src.nodes.tools import messages_tools
 
 
-INQUIRY_SYSTEM_PROMPT = """You are a helpful assistant for a business's customer support, 
+ENQUIRY_SYSTEM_PROMPT = """You are a helpful assistant for a business's customer support, 
 specializing in handling appointment-related inquiries.
 
 You have two tools available:
@@ -28,7 +28,7 @@ the messages, don't use special characters in the response.
 """
 
 
-def inquiry_node(state: MessageGraphState):
+def enquiry_node(state: MessageGraphState):
 
       business_id = state["business_id"]
 
@@ -40,7 +40,7 @@ def inquiry_node(state: MessageGraphState):
       llm_with_tools = llm.bind_tools(messages_tools)
 
       messages = [SystemMessage(
-         content=INQUIRY_SYSTEM_PROMPT)] + state["messages"]
+         content=ENQUIRY_SYSTEM_PROMPT)] + state["messages"]
 
       response = llm_with_tools.invoke(messages,
                            config={"configurable": {"business_id": str(business_id)}})
