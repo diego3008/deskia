@@ -24,9 +24,9 @@ API_URL = os.getenv("DESKIA_API_URL")
 
 @tool
 async def check_available_appointments(
+    tool_call_id: Annotated[str, InjectedToolCallId],
     starts_at: Optional[datetime] = None,
     state: Annotated[dict, InjectedState] = None,
-
 ):
     """This tool will help checking if there is availability for the appointment date requested by the user
         Args:
@@ -34,21 +34,28 @@ async def check_available_appointments(
             e.g. 2026-06-21T15:30:00. If the user only gives a date with no time,
             ask them to clarify the time before calling this tool.
     """
-
-    business_id = state["business_id"]  # read directly from state
+    business_id = state["business_id"]
     try:
-        url = f"{API_URL}/appointments/availability"   # <- add /appointments prefix
+        url = f"{API_URL}/appointments/availability"
         req_url = helpers["url_query"](url, {"starts_at": starts_at, "business_id": business_id})
-
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.get(req_url)
             is_available = resp.json()
-        return {
-            "available": is_available,
-            "date_checked": str(starts_at),
-        }
     except Exception as ex:
         return f"There was an error getting appointments: {ex}"
+
+    if is_available and starts_at is not None:
+        return Command(
+            update={
+                "confirmed_slot": {"starts_at": starts_at.isoformat()},
+                "messages": [
+                    ToolMessage(
+                        content=f"{starts_at} is available.", tool_call_id=tool_call_id
+                    )
+                ],
+            }
+        )
+    return {"available": is_available, "date_checked": str(starts_at)}
 
 
 @tool
