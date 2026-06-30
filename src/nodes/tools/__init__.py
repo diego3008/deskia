@@ -1,3 +1,4 @@
-from langgraph.prebuilt import tool_node
-from .messages_tools import tools
-messages_tools = tools
+from .messages_tools import appointment_tools, customer_tools as custom_tools
+
+messages_tools = appointment_tools
+customer_tools = custom_tools

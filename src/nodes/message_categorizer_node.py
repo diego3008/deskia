@@ -3,6 +3,10 @@ from langchain_anthropic import ChatAnthropic
 from src.agents.message_categorizer import message_categorizer_agent
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
+SERVICE_CATEGORIES = {"service_request", "confirmation", "decline"}
+TOPIC_CHANGE_CATEGORIES = {"greeting", "customer_complaint", "customer_feedback"}
+
+
 def message_categorizer_node(state: MessageGraphState):
     body = state['current_message']
 
@@ -25,6 +29,14 @@ def message_categorizer_node(state: MessageGraphState):
         "history": history  # ← pass history
     })
 
-    state['message_category'] = result.category.value
+    category = result.category.value
+    state['message_category'] = category
+
+    # Track the booking flow across turns so mid-flow replies (a bare email,
+    # a name) stay in the flow even if the categorizer mislabels them.
+    if category in TOPIC_CHANGE_CATEGORIES:
+        state['active_flow'] = None
+    elif category in SERVICE_CATEGORIES or state.get('active_flow') == "booking":
+        state['active_flow'] = "booking"
 
     return state

@@ -1,4 +1,5 @@
-from typing import Annotated, List, TypedDict
+from typing import Annotated, List, Optional, TypedDict
+from typing_extensions import Literal
 from uuid import UUID
 
 from langgraph.graph import add_messages
@@ -34,3 +35,17 @@ class MessageGraphState(TypedDict):
     message_category: str
     message_response: str
     business_id: UUID
+    customer: dict | None
+    active_flow: str | None
+    customer_id: UUID | None
+
+
+class ServicesRequestState(TypedDict):
+    messages: Annotated[list, add_messages]
+    current_message: str
+    business_id: UUID
+    customer: dict | None
+    flow_stage: Literal["awaiting_email", "awaiting_new_time", "ready_to_reschedule", "done"]
+    customer_id: UUID | None
+    active_appointment: Optional[dict] 
+    confirmed_slot: Optional[dict]

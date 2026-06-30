@@ -11,12 +11,12 @@ When a customer sends a message, Deskia reads it, figures out what they want, an
 The pipeline works like this:
 
 1. **Receives the message** — a customer sends a Telegram message to a business (e.g. "I'd like to book a massage for Saturday")
-2. **Categorizes the intent** — the agent classifies it: greeting, inquiry, booking request, or something it can't handle
+2. **Categorizes the intent** — the agent classifies it: greeting, enquiry, booking request, or something it can't handle
 3. **Takes action** — depending on the category:
-   - Greets the customer and introduces itself as Deskia
-   - Looks up available appointment slots via the business's API
-   - Books an appointment when a time is confirmed
-   - Falls back gracefully when the request is outside its scope
+    - Greets the customer and introduces itself as Deskia
+    - Looks up available appointment slots via the business's API
+    - Books an appointment when a time is confirmed
+    - Falls back gracefully when the request is outside its scope
 4. **Replies** — sends a natural, on-brand response back to the customer
 
 The business owner sees all of this reflected in their dashboard: bookings, messages handled, and upcoming appointments — updated in real time.
