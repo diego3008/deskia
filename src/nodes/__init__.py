@@ -4,6 +4,7 @@ from src.nodes.message_categorizer_node import message_categorizer_node
 from src.nodes.message_listener_node import message_listener_node as message_listener
 from src.nodes.message_writer_node import message_writer_node
 from src.nodes.customer_node import customer_node
+from src.nodes.services_planner_node import services_planner_node
 
 from src.nodes.fallback_node import fallback_node
 
@@ -17,5 +18,6 @@ NODES = {
 }
 
 SERVICES_REQUEST_NODES = {
-    "services_request_node": services_request_node
+    "services_request_node": services_request_node,
+    "planner": services_planner_node,
 }

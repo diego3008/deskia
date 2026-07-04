@@ -62,3 +62,68 @@ def test_format_plan_block_marks_done_and_shows_next():
     assert "[x] find" in block
     assert "[ ] availability" in block
     assert "NEXT STEP: availability" in block
+
+
+from unittest.mock import MagicMock, patch
+
+from src.nodes.services_planner_node import services_planner_node
+from src.structured_outputs import BookingIntent
+
+
+def _node_state(**kw):
+    base = {
+        "messages": [],
+        "current_message": "I want to book Friday at 3pm",
+        "service_plan": None,
+        "active_appointment": None,
+        "confirmed_slot": None,
+    }
+    base.update(kw)
+    return base
+
+
+def _mock_intent(mock_factory, intent):
+    chain = MagicMock()
+    result = MagicMock()
+    result.intent = intent
+    chain.invoke.return_value = result
+    mock_factory.return_value = chain
+    return chain
+
+
+@patch("src.nodes.services_planner_node.services_planner_agent")
+def test_planner_writes_plan_on_fresh_flow_per_intent(mock_factory):
+    _mock_intent(mock_factory, BookingIntent.book)
+    out = services_planner_node(_node_state())
+    assert out == {"service_plan": {"intent": "book", "steps": ["availability", "book"]}}
+
+    _mock_intent(mock_factory, BookingIntent.reschedule)
+    out = services_planner_node(
+        _node_state(current_message="move my appointment to Monday")
+    )
+    assert out == {
+        "service_plan": {"intent": "reschedule", "steps": ["find", "availability", "reschedule"]}
+    }
+
+
+@patch("src.nodes.services_planner_node.services_planner_agent")
+def test_planner_passthrough_when_plan_exists(mock_factory):
+    out = services_planner_node(
+        _node_state(service_plan={"intent": "book", "steps": ["availability", "book"]})
+    )
+    assert out == {}
+    mock_factory.assert_not_called()
+
+
+@patch("src.nodes.services_planner_node.services_planner_agent")
+def test_planner_unknown_writes_no_plan(mock_factory):
+    _mock_intent(mock_factory, BookingIntent.unknown)
+    assert services_planner_node(_node_state(current_message="hmm")) == {}
+
+
+@patch("src.nodes.services_planner_node.services_planner_agent")
+def test_planner_degrades_on_error(mock_factory):
+    chain = MagicMock()
+    chain.invoke.side_effect = Exception("boom")
+    mock_factory.return_value = chain
+    assert services_planner_node(_node_state()) == {}

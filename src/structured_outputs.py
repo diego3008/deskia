@@ -16,3 +16,17 @@ class MessageCategory(str, Enum):
 
 class CategorizerMessageOutput(BaseModel):
     category: MessageCategory = Field(..., description="The category assigned to the message, indicating its type based on predefined rules.")
+
+
+class BookingIntent(str, Enum):
+    book = "book"
+    reschedule = "reschedule"
+    unknown = "unknown"
+
+
+class PlannerIntentOutput(BaseModel):
+    intent: BookingIntent = Field(
+        ...,
+        description="Whether the customer wants to book a NEW appointment (book), "
+        "change an EXISTING one (reschedule), or it is not yet clear (unknown).",
+    )
