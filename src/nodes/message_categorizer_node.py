@@ -1,7 +1,7 @@
 from src.state import MessageGraphState
 from langchain_anthropic import ChatAnthropic
 from src.agents.message_categorizer import message_categorizer_agent
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from src.helpers import helpers
 
 SERVICE_CATEGORIES = {"service_request", "confirmation", "decline"}
 TOPIC_CHANGE_CATEGORIES = {"greeting", "customer_complaint", "customer_feedback"}
@@ -15,14 +15,7 @@ def message_categorizer_node(state: MessageGraphState):
         return state
 
     # Build conversation history from last 6 messages
-    recent = [
-        m for m in state["messages"][-6:]
-        if not isinstance(m, SystemMessage)
-    ]
-    history = "\n".join(
-        f"{'User' if isinstance(m, HumanMessage) else 'Agent'}: {m.content}"
-        for m in recent
-    ) or "No previous messages."
+    history = helpers["build_recent_history"](state["messages"])
 
     result = message_categorizer_agent().invoke({
         "message": body,

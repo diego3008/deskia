@@ -1,11 +1,11 @@
 from src.state import MessageGraphState
 
-from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import PromptTemplate
 from langchain_anthropic import ChatAnthropic
 from dotenv import load_dotenv
 
 from src.structured_outputs import PlannerIntentOutput
+from src.helpers import helpers
 
 load_dotenv()
 
@@ -88,14 +88,7 @@ def services_planner_node(state: MessageGraphState) -> dict:
     if not body:
         return {}
 
-    recent = [
-        m for m in state.get("messages", [])[-6:]
-        if not isinstance(m, SystemMessage)
-    ]
-    history = "\n".join(
-        f"{'User' if isinstance(m, HumanMessage) else 'Agent'}: {m.content}"
-        for m in recent
-    ) or "No previous messages."
+    history = helpers["build_recent_history"](state.get("messages", []))
 
     # Graceful degradation: any failure leaves the plan unset and the subgraph
     # behaves like today's plain ReAct loop.
