@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from src.state import MessageGraphState
 from src.nodes.tools.services import tools
 from src.nodes.services_planner_node import plan_status, format_plan_block
+from src.helpers.language import LANGUAGE_DIRECTIVE
 
 load_dotenv()
 
@@ -57,7 +58,7 @@ def services_request_node(state: MessageGraphState):
     else:
         system_content = SERVICES_REQUEST_SYSTEM_PROMPT
 
-    messages = [SystemMessage(content=system_content)] + state["messages"]
+    messages = [SystemMessage(content=system_content), LANGUAGE_DIRECTIVE] + state["messages"]
     response = llm_with_tools.invoke(
         messages, config={"configurable": {"business_id": str(business_id)}}
     )

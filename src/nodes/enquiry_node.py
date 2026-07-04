@@ -3,6 +3,7 @@ from langchain_core.messages import SystemMessage
 
 from src.state import MessageGraphState
 from src.nodes.tools import messages_tools
+from src.helpers.language import LANGUAGE_DIRECTIVE
 
 
 ENQUIRY_SYSTEM_PROMPT = """You are a helpful assistant for a business's customer support, 
@@ -40,7 +41,7 @@ def enquiry_node(state: MessageGraphState):
       llm_with_tools = llm.bind_tools(messages_tools)
 
       messages = [SystemMessage(
-         content=ENQUIRY_SYSTEM_PROMPT)] + state["messages"]
+         content=ENQUIRY_SYSTEM_PROMPT), LANGUAGE_DIRECTIVE] + state["messages"]
 
       response = llm_with_tools.invoke(messages,
                            config={"configurable": {"business_id": str(business_id)}})
