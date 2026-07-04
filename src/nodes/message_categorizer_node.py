@@ -37,6 +37,7 @@ def message_categorizer_node(state: MessageGraphState):
     # a name) stay in the flow even if the categorizer mislabels them.
     if category in TOPIC_CHANGE_CATEGORIES:
         state['active_flow'] = None
+        state['service_plan'] = None
     elif category in SERVICE_CATEGORIES or prev_flow == "booking":
         state['active_flow'] = "booking"
 
@@ -46,5 +47,6 @@ def message_categorizer_node(state: MessageGraphState):
     if category == "service_request" and prev_flow != "booking":
         state['active_appointment'] = None
         state['confirmed_slot'] = None
+        state['service_plan'] = None
 
     return state
