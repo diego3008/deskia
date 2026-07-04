@@ -14,9 +14,11 @@ class ServicesGraph:
     def __init__(self):
 
         workflow = StateGraph(MessageGraphState)
+        workflow.add_node("planner", SERVICES_REQUEST_NODES["planner"])
         workflow.add_node("services_request_node", SERVICES_REQUEST_NODES["services_request_node"])
         workflow.add_node("tools", ToolNode(tools))
-        workflow.add_edge(START, "services_request_node")
+        workflow.add_edge(START, "planner")
+        workflow.add_edge("planner", "services_request_node")
         workflow.add_conditional_edges(
             "services_request_node",
             tools_condition,
