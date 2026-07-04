@@ -40,3 +40,4 @@ class MessageGraphState(TypedDict):
     customer_id: UUID | None
     active_appointment: dict | None
     confirmed_slot: dict | None
+    service_plan: dict | None

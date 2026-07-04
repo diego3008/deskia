@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 
 from src.state import MessageGraphState
 from src.nodes.tools.services import tools
+from src.nodes.services_planner_node import plan_status, format_plan_block
+from src.helpers.language import LANGUAGE_DIRECTIVE
 
 load_dotenv()
 
@@ -49,7 +51,14 @@ def services_request_node(state: MessageGraphState):
     llm = ChatAnthropic(model="claude-haiku-4-5-20251001", temperature=0)
     llm_with_tools = llm.bind_tools(tools)
 
-    messages = [SystemMessage(content=SERVICES_REQUEST_SYSTEM_PROMPT)] + state["messages"]
+    plan = state.get("service_plan")
+    if plan:
+        block = format_plan_block(plan, plan_status(state))
+        system_content = f"{block}\n\n{SERVICES_REQUEST_SYSTEM_PROMPT}"
+    else:
+        system_content = SERVICES_REQUEST_SYSTEM_PROMPT
+
+    messages = [SystemMessage(content=system_content), LANGUAGE_DIRECTIVE] + state["messages"]
     response = llm_with_tools.invoke(
         messages, config={"configurable": {"business_id": str(business_id)}}
     )
