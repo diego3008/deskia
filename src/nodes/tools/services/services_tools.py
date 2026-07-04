@@ -12,6 +12,9 @@ import httpx
 
 from src.helpers import helpers
 from src.models.appointments import AppointmentCreate, AppointmentInput
+from tzlocal import get_localzone
+
+LOCAL_TZ = get_localzone()
 
 
 API_URL = os.getenv("DESKIA_API_URL")
@@ -83,7 +86,6 @@ async def create_appointment(
         customer_id=customer_id,
     )
     try:
-        # NOTE: the API must atomically re-validate availability and reject conflicts; confirmed_slot is only a UX gate, not a concurrency guarantee.
         url = f"{API_URL}/appointments/book"
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(url, json=full_appointment.model_dump(mode="json"))
@@ -157,47 +159,45 @@ async def reschedule_appointment(
 @tool
 async def find_customer_appointment(
     tool_call_id: Annotated[str, InjectedToolCallId],
-    appointment_date: Optional[str] = None,
+    appointment_date: str = None,
     state: Annotated[dict, InjectedState] = None,
 ):
-    """Look up the identified customer's upcoming appointment(s) for this business.
+    """Look up the identified customer's appointment for this business. A customer
+    can only have one appointment at a given time, so this returns at most one match.
     Call this first when the customer wants to reschedule. The customer is already
     identified, so no email is needed.
         Args:
-        appointment_date: Optional ISO date (e.g. 2026-07-01) to pick a specific
-            appointment when the customer has more than one. Ask the user which date
-            first, then call again with it.
+        appointment_date: ISO date (e.g. 2026-07-01) to narrow the lookup to
+            a specific date.
     """
     business_id = state["business_id"]
     customer_id = state.get("customer_id") or (state.get("customer") or {}).get("id")
     if not customer_id:
         return "The customer is not identified yet, so I cannot look up their appointments."
     try:
-        # NOTE: confirm this lists a customer's appointments against the API
-        url = f"{API_URL}/appointments"
-        req_url = helpers["url_query"](url, {"customer_id": customer_id, "business_id": business_id})
+        url = f"{API_URL}/appointments/find_customer_appointment"
+        params = {"customer_id": customer_id, "business_id": business_id}
+        if appointment_date:
+            params["appointment_date"] = appointment_date[:10]
+        req_url = helpers["url_query"](url, params)
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.get(req_url)
         resp.raise_for_status()
-        appointments = resp.json()
+        appt = resp.json()
     except Exception as ex:
-        return f"There was an error looking up the customer's appointments: {ex}"
+        return f"There was an error looking up the customer's appointment: {ex}"
 
-    if not appointments:
-        return "I could not find any upcoming appointments for this customer."
+    if not appt:
+        if appointment_date:
+            return (
+                f"I could not find any appointment for this customer on {appointment_date[:10]}. "
+                "Please double-check the date."
+            )
+        return "I could not find any upcoming appointment for this customer."
+    
+    appt["starts_at"] = datetime.fromisoformat(appt["starts_at"]).astimezone(LOCAL_TZ).isoformat()
+    appt["ends_at"] = datetime.fromisoformat(appt["ends_at"]).astimezone(LOCAL_TZ).isoformat()
 
-    if appointment_date:
-        matches = [a for a in appointments if str(a.get("starts_at", "")).startswith(appointment_date[:10])]
-        appointments = matches or appointments
-
-    if len(appointments) > 1:
-        return (
-            f"This customer has multiple upcoming appointments: {appointments}. "
-            "Ask the user which date they mean, then call find_customer_appointment "
-            "again with that date in appointment_date."
-        )
-
-    appt = appointments[0]
     return Command(
         update={
             "active_appointment": appt,
