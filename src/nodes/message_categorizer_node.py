@@ -19,15 +19,14 @@ def message_categorizer_node(state: MessageGraphState):
 
     result = message_categorizer_agent().invoke({
         "message": body,
-        "history": history  # ← pass history
+        "history": history
     })
 
     prev_flow = state.get('active_flow')
     category = result.category.value
     state['message_category'] = category
 
-    # Track the booking flow across turns so mid-flow replies (a bare email,
-    # a name) stay in the flow even if the categorizer mislabels them.
+    
     if category in TOPIC_CHANGE_CATEGORIES:
         state['active_flow'] = None
         state['service_plan'] = None
@@ -41,5 +40,6 @@ def message_categorizer_node(state: MessageGraphState):
         state['active_appointment'] = None
         state['confirmed_slot'] = None
         state['service_plan'] = None
+        state["customer"] = None
 
     return state
