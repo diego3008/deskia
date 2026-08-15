@@ -180,15 +180,14 @@ async def create_customer(
         return f"There was an error creating customer: {ex}"
 
 
-appointment_tools = [
-    check_available_appointments,
-    create_appointment,
-]
+# Appointment mutations now belong exclusively to the deterministic appointment
+# subgraph. Keep the historical functions private until their module is removed.
+appointment_tools = []
 
 customer_tools = [
     find_customer,
     create_customer,
 ]
 
-# Backwards-compatible alias: the appointment loop binds this list.
+# Deprecated legacy export. It intentionally contains no appointment tools.
 tools = appointment_tools

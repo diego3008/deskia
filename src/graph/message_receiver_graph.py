@@ -9,8 +9,7 @@ from src.graph.services_graph import services_graph
 
 LANGSMITH_API_KEY = os.getenv("LANGSMITH_API_KEY")
 
-SERVICE_CATEGORIES = {"service_request", "confirmation", "decline"}
-WRITER_CATEGORIES = {"greeting", "customer_complaint", "customer_feedback"}
+
 
 
 class TelegramSupportGraph:

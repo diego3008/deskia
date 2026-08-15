@@ -1,4 +1,5 @@
 from langchain_anthropic import ChatAnthropic
+# from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage
 from dotenv import load_dotenv
 
@@ -49,6 +50,7 @@ def services_request_node(state: MessageGraphState):
     business_id = state["business_id"]
 
     llm = ChatAnthropic(model="claude-haiku-4-5-20251001", temperature=0)
+    # llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
     llm_with_tools = llm.bind_tools(tools)
 
     plan = state.get("service_plan")

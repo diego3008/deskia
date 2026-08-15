@@ -1,8 +1,44 @@
-from pydantic import Field
 from datetime import datetime
-from uuid import UUID, uuid4
+from uuid import UUID
 
-from anthropic import BaseModel
+from pydantic import BaseModel, Field
+
+
+class AppointmentIntervalRequest(BaseModel):
+    starts_at: datetime
+    ends_at: datetime
+
+
+class AppointmentBookingRequest(AppointmentIntervalRequest):
+    business_id: UUID
+    customer_id: UUID
+
+
+class AppointmentRescheduleRequest(AppointmentIntervalRequest):
+    business_id: UUID
+    customer_id: UUID
+
+
+class AppointmentCancellationRequest(BaseModel):
+    business_id: UUID
+    customer_id: UUID
+    reason: str | None = Field(default=None, max_length=500)
+
+
+class AppointmentSummary(BaseModel):
+    id: UUID
+    status: str
+    starts_at: datetime
+    ends_at: datetime
+    active: bool
+
+
+class AppointmentCancellationResponse(BaseModel):
+    id: UUID
+    status: str
+    cancelled_at: datetime
+    starts_at: datetime
+    ends_at: datetime
 
 
 class AppointmentCreate(BaseModel):
