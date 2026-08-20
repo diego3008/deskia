@@ -1,4 +1,4 @@
-from langchain_anthropic import ChatAnthropic
+from langchain_openrouter import ChatOpenRouter
 from langchain_core.messages import SystemMessage
 
 from src.state import MessageGraphState
@@ -33,8 +33,8 @@ def enquiry_node(state: MessageGraphState):
 
       business_id = state["business_id"]
 
-      llm = ChatAnthropic(
-         model="claude-haiku-4-5-20251001", temperature=0
+      llm = ChatOpenRouter(
+         model="~anthropic/claude-haiku-latest", temperature=0
       )
 
       

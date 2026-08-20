@@ -1,12 +1,11 @@
-from langchain_anthropic import ChatAnthropic
-from langchain.prompts import PromptTemplate
-
+from langchain_core.prompts import PromptTemplate
+from langchain_openrouter import ChatOpenRouter
 from src.prompts import MESSAGE_WRITER_PROMPT
 from src.state import OutBoundsMessge
 
 
 def message_writer():
-    llm = ChatAnthropic(model="claude-haiku-4-5-20251001", temperature=0)
+    llm = ChatOpenRouter(model="~anthropic/claude-haiku-latest", temperature=0)
 
     prompt = PromptTemplate(
         template=MESSAGE_WRITER_PROMPT,

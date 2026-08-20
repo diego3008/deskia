@@ -1,4 +1,4 @@
-from langchain_anthropic import ChatAnthropic
+from langchain_openrouter import ChatOpenRouter
 from langchain_core.messages import SystemMessage
 from dotenv import load_dotenv
 
@@ -48,7 +48,7 @@ conversation. Use clean formats for the messages, don't use special characters i
 def services_request_node(state: MessageGraphState):
     business_id = state["business_id"]
 
-    llm = ChatAnthropic(model="claude-haiku-4-5-20251001", temperature=0)
+    llm = ChatOpenRouter(model="~anthropic/claude-haiku-latest", temperature=0)
     llm_with_tools = llm.bind_tools(tools)
 
     plan = state.get("service_plan")
