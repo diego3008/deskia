@@ -1,18 +1,23 @@
-CATEGORIZER_TASK = """Your task is to analyze the latest incoming message in context of the conversation and classify it into exactly one of the following categories:
+CATEGORIZER_TASK = """Your task is to analyze the latest incoming message in the context of the conversation and classify it into exactly one of the following specific categories:
 
-- **service_request**: Anything about appointments or services — asking about availability or pricing, or wanting to book, reschedule/change, or cancel an existing appointment. "Cancel my appointment" or "move my Friday booking" belong here, NOT in decline.
-- **confirmation**: Confirming, agreeing, or responding positively to a previous question (e.g. "yes", "sure", "ok", "go ahead", "sounds good").
-- **decline**: Conversationally declining or stopping the current exchange (e.g. "no", "never mind", "don't book it"). This is a reply to the agent, NOT a request to cancel a booked appointment — that is service_request.
-- **customer_complaint**: Expresses dissatisfaction, reports a problem, or requests a fix.
-- **customer_feedback**: Shares an opinion, suggestion, or experience.
-- **greeting**: A greeting with no other intent (e.g. "hi", "hello").
-- **unrelated**: Does not relate to any product, service, or ongoing conversation.
+- **new_appointment**: Expressing a desire to book a new dental appointment or asking about available dates, times, or slots for a treatment (e.g., "Quiero una limpieza mañana", "¿Qué horarios tienen disponibles?", "¿Puedo agendar una cita?").
+- **reschedule_appointment**: Wanting to change, move, or postpone an already scheduled booking to a different date or time (e.g., "Can I move my Friday booking to Saturday?", "I need to change my appointment time").
+- **cancel_appointment**: Requesting to completely drop or cancel an existing appointment without rescheduling (e.g., "Cancel my appointment", "I won't be able to make it, delete my booking").
+- **service_inquiry**: Asking about dental treatments, prices, duration, availability, or service details before booking (e.g., "¿Cuánto cuesta una limpieza?", "¿Hacen blanqueamiento dental?").
+- **confirmation**: A positive reply to the agent's pending question (e.g., "sí", "claro", "ok", "adelante", "ese horario está bien"). Its meaning depends on the conversation context; it is not a new appointment request by itself.
+- **decline**: A negative reply to the agent's pending question or a request to stop the current exchange (e.g., "no gracias", "mejor no", "cambié de opinión"). This is not a request to cancel a confirmed appointment.
+- **customer_complaint**: Expresses dissatisfaction, reports an issue, or requests a fix for a bad experience.
+- **customer_feedback**: Shares an opinion, suggestion, or positive review of the service.
+- **greeting**: A pure greeting with no other intent or action requested (e.g., "hi", "hello", "good morning").
+- **unrelated**: Does not relate to any product, service, appointment, or ongoing business conversation.
 
 ## Rules
 - Return only one category per message.
 - Always consider the conversation history to understand the intent of short messages like "yes", "no", "ok".
 - A short affirmative after the agent asked a question is ALWAYS a confirmation, never unrelated.
-- "Cancel my appointment" / "reschedule my booking" is ALWAYS service_request, never decline.
+- A short negative after the agent asked a question is a decline unless it explicitly requests cancelling an existing appointment.
+- If a message mentions changing a booking, classify it as **reschedule_appointment**, never as decline.
+- If a message mentions dropping a booking completely, classify it as **cancel_appointment**, never as decline.
 - If the message could fit multiple categories, choose the most dominant intent.
 
 ## Conversation history (last 6 messages for context)
