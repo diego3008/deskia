@@ -1,7 +1,7 @@
 {
     "dependencies": ["."],
     "graphs": {
-        "message_graph": "./src/graph/message_receiver_graph.py:message_graph"
+        "message_graph": "./src/graph/appointment_booking_graph.py:booking_subgraph"
     },
     "env": ".env",
     "python_path": "."
