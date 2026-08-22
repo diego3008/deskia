@@ -29,6 +29,30 @@ class IncomingMessage(BaseModel):
 class OutBoundsMessge(TypedDict):
     response: str
 
+class AppointmentBookingState(TypedDict):
+    messages: Annotated[list, add_messages]
+    message_category: str
+    current_flow: str
+    next_action: str
+
+
+class UserValidationState(TypedDict):
+    business_id: UUID | None
+    messages: Annotated[list, add_messages]
+    message_category: str
+    current_flow: str
+    pending_question: str | None
+    customer_status: str | None
+    next_action: str
+    user_data: dict
+
+class ServicesInquiryNode(TypedDict):
+    messages: Annotated[list, add_messages]
+    message_category: str
+    current_flow: str
+    next_action: str
+    user_data: dict = {}
+
 class MessageGraphState(TypedDict):
     messages: Annotated[list, add_messages]
     current_message: str
@@ -36,8 +60,11 @@ class MessageGraphState(TypedDict):
     message_response: str
     business_id: UUID
     customer: dict | None
-    active_flow: str | None
+    current_flow: str | None
+    next_action: str
     customer_id: UUID | None
     active_appointment: dict | None
     confirmed_slot: dict | None
-    service_plan: dict | None
+    pending_question: str | None
+    customer_status: str | None
+    user_data: dict = {}
