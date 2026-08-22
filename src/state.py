@@ -11,21 +11,6 @@ class State(TypedDict):
     step_log: Annotated[list[str], list.__add__]  # accumulates node names visited
 
 
-    
-
-class IncomingMessage(BaseModel):
-    """
-    Normalized message sent to the agent service.
-    Platform-agnostic — the agent never deals with raw Telegram objects.
-    """
-    platform: str
-    chat_id: str
-    user_id: str
-    username: str | None = None
-    metadata: dict = {}
-    role: str = "user"
-    content: str
-
 class OutBoundsMessge(TypedDict):
     response: str
 

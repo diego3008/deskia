@@ -1,9 +1,9 @@
 CATEGORIZER_TASK = """Your task is to analyze the latest incoming message in the context of the conversation and classify it into exactly one of the following specific categories:
 
-- **new_appointment**: Expressing a desire to book a new dental appointment or asking about available dates, times, or slots for a treatment (e.g., "Quiero una limpieza mañana", "¿Qué horarios tienen disponibles?", "¿Puedo agendar una cita?").
+- **new_appointment**: Expressing a desire to book a new appointment or asking about available dates, times, or slots for a treatment (e.g."¿Qué horarios tienen disponibles?", "¿Puedo agendar una cita?").
 - **reschedule_appointment**: Wanting to change, move, or postpone an already scheduled booking to a different date or time (e.g., "Can I move my Friday booking to Saturday?", "I need to change my appointment time").
 - **cancel_appointment**: Requesting to completely drop or cancel an existing appointment without rescheduling (e.g., "Cancel my appointment", "I won't be able to make it, delete my booking").
-- **service_inquiry**: Asking about dental treatments, prices, duration, availability, or service details before booking (e.g., "¿Cuánto cuesta una limpieza?", "¿Hacen blanqueamiento dental?").
+- **service_inquiry**: Asking about treatments, prices, duration, availability, or service details before booking (e.g., "¿Cuánto cuesta?", "¿Hacen cortes para caballero?").
 - **confirmation**: A positive reply to the agent's pending question (e.g., "sí", "claro", "ok", "adelante", "ese horario está bien"). Its meaning depends on the conversation context; it is not a new appointment request by itself.
 - **decline**: A negative reply to the agent's pending question or a request to stop the current exchange (e.g., "no gracias", "mejor no", "cambié de opinión"). This is not a request to cancel a confirmed appointment.
 - **customer_complaint**: Expresses dissatisfaction, reports an issue, or requests a fix for a bad experience.
