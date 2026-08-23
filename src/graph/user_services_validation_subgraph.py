@@ -43,8 +43,13 @@ class UserServicesValidation:
 
 
 def router_request(state: UserValidationState) -> str:
+    if state.get("next_action") in {
+        "retry_customer_lookup",
+        "retry_customer_creation",
+    }:
+        return "user_validation"
+
     if state.get("pending_question") in {
-        "is_new_client",
         "existing_customer_email",
         "confirm_create_customer",
         "new_customer_details",

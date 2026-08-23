@@ -27,20 +27,21 @@ async def customer_lookup_node(state: UserValidationState) -> dict:
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             response = await client.get(url)
-    except httpx.HTTPError:
+
+        if response.status_code == 404:
+            return {
+                "pending_question": "confirm_create_customer",
+                "next_action": "confirm_create_customer",
+            }
+
+        response.raise_for_status()
+        customer = response.json()
+    except (httpx.HTTPError, ValueError):
         return {
             "next_action": "retry_customer_lookup",
             "error": "customer_lookup_failed",
         }
 
-    if response.status_code == 404:
-        return {
-            "pending_question": "confirm_create_customer",
-            "next_action": "confirm_create_customer",
-        }
-
-    response.raise_for_status()
-    customer = response.json()
     return {
         "customer_status": "existing",
         "pending_question": None,

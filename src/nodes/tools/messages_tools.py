@@ -146,7 +146,7 @@ async def create_customer(
     once you have collected the user's first and last name.
 
         Args:
-        customer: A CustomerInput with email (required), and first_name / last_name if provided.
+        customer: A CustomerInput with required email, first_name, and last_name.
     """
     business_id = state["business_id"]  # read directly from state
     full_customer = CustomerCreate(

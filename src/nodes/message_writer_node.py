@@ -16,7 +16,7 @@ def message_writer_node(state: MessageGraphState) -> MessageGraphState:
         "is_first_message": is_first_message,
     })
 
-    state["message_response"] = result["response"]
-    state["messages"] = [AIMessage(content=result["response"])]
-
-    return state
+    return {
+        "message_response": result["response"],
+        "messages": [AIMessage(content=result["response"])],
+    }

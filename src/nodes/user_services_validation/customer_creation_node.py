@@ -18,8 +18,10 @@ async def customer_creation_node(state: UserValidationState) -> dict:
     user_data = state.get("user_data", {})
     business_id = state.get("business_id")
     email = user_data.get("email")
+    first_name = user_data.get("first_name")
+    last_name = user_data.get("last_name")
 
-    if not business_id or not email:
+    if not all((business_id, email, first_name, last_name)):
         return {
             "pending_question": "new_customer_details",
             "next_action": "request_new_customer_details",
@@ -29,8 +31,8 @@ async def customer_creation_node(state: UserValidationState) -> dict:
     customer = CustomerCreate(
         business_id=business_id,
         email=email,
-        first_name=user_data.get("first_name"),
-        last_name=user_data.get("last_name"),
+        first_name=first_name,
+        last_name=last_name,
     )
 
     try:
@@ -39,13 +41,13 @@ async def customer_creation_node(state: UserValidationState) -> dict:
                 f"{API_URL}/customers/", json=customer.model_dump(mode="json")
             )
         response.raise_for_status()
-    except httpx.HTTPError:
+        created_customer = response.json()
+    except (httpx.HTTPError, ValueError):
         return {
             "next_action": "retry_customer_creation",
             "error": "customer_creation_failed",
         }
 
-    created_customer = response.json()
     return {
         "customer_status": "new",
         "pending_question": None,

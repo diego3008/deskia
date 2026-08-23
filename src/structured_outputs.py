@@ -14,6 +14,8 @@ class MessageCategory(str, Enum):
     unrelated = "unrelated"
     service_inquiry = "service_inquiry"
     new_appointment = "new_appointment"
+    reschedule_appointment = "reschedule_appointment"
+    cancel_appointment = "cancel_appointment"
 
 
 class CategorizerMessageOutput(BaseModel):
