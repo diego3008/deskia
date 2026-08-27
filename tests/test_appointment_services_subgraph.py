@@ -1,11 +1,18 @@
 import unittest
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 from uuid import uuid4
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 
+from src.models.appointments import AppointmentInput
 from src.nodes.message_categorizer_node import message_categorizer_node
+from src.nodes.message_writer_node import message_writer_node
+from src.nodes.tools.services.services_tools import (
+    create_appointment,
+    reschedule_appointment,
+)
 from src.nodes.user_services_validation.customer_creation_node import (
     customer_creation_node,
 )
@@ -259,6 +266,83 @@ class AppointmentContinuityRoutingTests(unittest.TestCase):
         self.assertIsNone(result.get("current_flow"))
         self.assertIsNone(result.get("active_appointment"))
         self.assertIsNone(result.get("confirmed_slot"))
+
+
+class AppointmentResponseHandoffTests(unittest.TestCase):
+    def test_writer_reuses_final_appointment_agent_message(self):
+        incoming = HumanMessage(content="Quiero agendar una cita")
+        final = AIMessage(content="Tu cita quedó agendada para mañana a las 10.")
+
+        with patch("src.nodes.message_writer_node.message_writer") as writer:
+            result = message_writer_node(
+                {
+                    "current_message": incoming,
+                    "message_category": "new_appointment",
+                    "messages": [incoming, final],
+                }
+            )
+
+        writer.assert_not_called()
+        self.assertEqual(result.get("message_response"), final.content)
+        self.assertNotIn("messages", result)
+
+
+class AppointmentToolLifecycleTests(unittest.IsolatedAsyncioTestCase):
+    async def test_create_completion_clears_flow(self):
+        start = datetime.fromisoformat("2026-08-28T10:00:00")
+        FakeClient.response = JsonResponse({"id": str(uuid4())})
+        state = {
+            "business_id": uuid4(),
+            "customer_id": str(uuid4()),
+            "current_flow": "appointment_services",
+            "next_action": "collect_appointment_details",
+            "confirmed_slot": {"starts_at": start.isoformat()},
+        }
+
+        with patch(
+            "src.nodes.tools.services.services_tools.httpx.AsyncClient",
+            FakeClient,
+        ):
+            command = await create_appointment.coroutine(
+                AppointmentInput(
+                    starts_at=start,
+                    ends_at=start + timedelta(hours=1),
+                ),
+                "tool-create",
+                state,
+            )
+
+        for field in ("current_flow", "next_action", "pending_question"):
+            self.assertIn(field, command.update)
+            self.assertIsNone(command.update[field])
+
+    async def test_reschedule_completion_clears_flow(self):
+        start = datetime.fromisoformat("2026-08-29T11:00:00")
+        FakeClient.response = JsonResponse({"id": str(uuid4())})
+        state = {
+            "business_id": uuid4(),
+            "current_flow": "appointment_services",
+            "next_action": "collect_appointment_details",
+            "active_appointment": {"id": str(uuid4())},
+            "confirmed_slot": {"starts_at": start.isoformat()},
+        }
+
+        with patch(
+            "src.nodes.tools.services.services_tools.httpx.AsyncClient",
+            FakeClient,
+        ):
+            command = await reschedule_appointment.coroutine(
+                AppointmentInput(
+                    starts_at=start,
+                    ends_at=start + timedelta(hours=1),
+                ),
+                "tool-reschedule",
+                state,
+            )
+
+        for field in ("current_flow", "next_action", "pending_question"):
+            self.assertIn(field, command.update)
+            self.assertIsNone(command.update[field])
 
 
 if __name__ == "__main__":

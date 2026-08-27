@@ -97,6 +97,9 @@ async def create_appointment(
     return Command(
         update={
             "confirmed_slot": None,
+            "current_flow": None,
+            "next_action": None,
+            "pending_question": None,
             "messages": [
                 ToolMessage(content=f"Appointment booked: {created}", tool_call_id=tool_call_id)
             ],
@@ -149,6 +152,9 @@ async def reschedule_appointment(
         update={
             "active_appointment": None,
             "confirmed_slot": None,
+            "current_flow": None,
+            "next_action": None,
+            "pending_question": None,
             "messages": [
                 ToolMessage(content=f"Appointment rescheduled: {updated}", tool_call_id=tool_call_id)
             ],
@@ -206,4 +212,3 @@ async def find_customer_appointment(
             ],
         }
     )
-
