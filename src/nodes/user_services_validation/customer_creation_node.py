@@ -42,6 +42,9 @@ async def customer_creation_node(state: UserValidationState) -> dict:
             )
         response.raise_for_status()
         created_customer = response.json()
+        customer_id = created_customer.get("id")
+        if not customer_id:
+            raise ValueError("customer response is missing id")
     except (httpx.HTTPError, ValueError):
         return {
             "next_action": "retry_customer_creation",
@@ -50,6 +53,8 @@ async def customer_creation_node(state: UserValidationState) -> dict:
 
     return {
         "customer_status": "new",
+        "customer": created_customer,
+        "customer_id": customer_id,
         "pending_question": None,
         "next_action": "collect_appointment_details",
         "user_data": {**user_data, "customer": created_customer},

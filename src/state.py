@@ -25,12 +25,13 @@ class UserValidationState(TypedDict):
     business_id: UUID | None
     messages: Annotated[list, add_messages]
     message_category: str
-    current_flow: str
+    current_flow: str | None
     pending_question: str | None
     customer_status: str | None
     next_action: str
     user_data: dict
-
+    customer: dict | None
+    customer_id: UUID | str | None
     retrieved_services: str | None
 
 class ServicesInquiryNode(TypedDict):

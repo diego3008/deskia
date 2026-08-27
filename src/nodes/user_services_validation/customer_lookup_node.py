@@ -36,6 +36,9 @@ async def customer_lookup_node(state: UserValidationState) -> dict:
 
         response.raise_for_status()
         customer = response.json()
+        customer_id = customer.get("id")
+        if not customer_id:
+            raise ValueError("customer response is missing id")
     except (httpx.HTTPError, ValueError):
         return {
             "next_action": "retry_customer_lookup",
@@ -44,6 +47,8 @@ async def customer_lookup_node(state: UserValidationState) -> dict:
 
     return {
         "customer_status": "existing",
+        "customer": customer,
+        "customer_id": customer_id,
         "pending_question": None,
         "next_action": "collect_appointment_details",
         "user_data": {**state.get("user_data", {}), "customer": customer},
