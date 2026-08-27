@@ -28,6 +28,8 @@ def message_categorizer_node(state: MessageGraphState):
 
     if category in FLOW_EXIT_CATEGORIES:
         state["current_flow"] = None
+        state["pending_question"] = None
+        state["next_action"] = None
         state["active_appointment"] = None
         state["confirmed_slot"] = None
     elif category in APPOINTMENT_CATEGORIES:

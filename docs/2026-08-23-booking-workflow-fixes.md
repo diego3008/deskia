@@ -63,7 +63,7 @@ The listener now clears `message_response` at the beginning of every inbound tur
 
 ## Verification
 
-The focused suite currently contains 29 passing tests covering routing, pending questions, customer lookup and creation, required names, graph writer registration, stale-response clearing, and writer message deltas.
+The focused suites cover routing, pending questions, customer validation, appointment tools, stale-response clearing, and writer message handoff.
 
 `git diff --check` also completes without errors.
 

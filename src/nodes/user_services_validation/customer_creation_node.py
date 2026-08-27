@@ -42,6 +42,8 @@ async def customer_creation_node(state: UserValidationState) -> dict:
             )
         response.raise_for_status()
         created_customer = response.json()
+        if not isinstance(created_customer, dict):
+            raise ValueError("customer response must be an object")
         customer_id = created_customer.get("id")
         if not customer_id:
             raise ValueError("customer response is missing id")

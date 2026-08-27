@@ -36,6 +36,8 @@ async def customer_lookup_node(state: UserValidationState) -> dict:
 
         response.raise_for_status()
         customer = response.json()
+        if not isinstance(customer, dict):
+            raise ValueError("customer response must be an object")
         customer_id = customer.get("id")
         if not customer_id:
             raise ValueError("customer response is missing id")

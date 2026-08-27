@@ -131,6 +131,48 @@ class ValidatedCustomerHandoffTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result.get("next_action"), "retry_customer_creation")
 
+    async def test_lookup_retries_when_payload_is_not_an_object(self):
+        FakeClient.response = JsonResponse([])
+
+        with patch(
+            "src.nodes.user_services_validation.customer_lookup_node.httpx.AsyncClient",
+            FakeClient,
+        ):
+            try:
+                result = await customer_lookup_node(
+                    {
+                        "business_id": uuid4(),
+                        "user_data": {"email": "ana@example.com"},
+                    }
+                )
+            except Exception as error:
+                self.fail(f"lookup raised instead of returning retry state: {error}")
+
+        self.assertEqual(result.get("next_action"), "retry_customer_lookup")
+
+    async def test_creation_retries_when_payload_is_not_an_object(self):
+        FakeClient.response = JsonResponse(None)
+
+        with patch(
+            "src.nodes.user_services_validation.customer_creation_node.httpx.AsyncClient",
+            FakeClient,
+        ):
+            try:
+                result = await customer_creation_node(
+                    {
+                        "business_id": uuid4(),
+                        "user_data": {
+                            "email": "ana@example.com",
+                            "first_name": "Ana",
+                            "last_name": "López",
+                        },
+                    }
+                )
+            except Exception as error:
+                self.fail(f"creation raised instead of returning retry state: {error}")
+
+        self.assertEqual(result.get("next_action"), "retry_customer_creation")
+
 
 class AppointmentServicesGraphTests(unittest.TestCase):
     def test_subgraph_compiles_as_a_tool_loop(self):
@@ -146,6 +188,65 @@ class AppointmentServicesGraphTests(unittest.TestCase):
         self.assertIn(("__start__", "appointment_agent"), edges)
         self.assertIn(("appointment_agent", "tools"), edges)
         self.assertIn(("tools", "appointment_agent"), edges)
+
+
+class AppointmentServicesGraphIntegrationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_compiled_tool_loop_executes_tool_and_returns_final_agent_message(self):
+        from src.graph.appointment_services_subgraph import (
+            appointment_services_subgraph,
+        )
+
+        start = datetime.fromisoformat("2026-08-28T10:00:00")
+        incoming = HumanMessage(content="Is tomorrow at ten available?")
+
+        class FakeAppointmentModel:
+            def bind_tools(self, bound_tools):
+                return self
+
+            def invoke(self, messages, config=None):
+                if any(message.type == "tool" for message in messages):
+                    return AIMessage(content="That appointment time is available.")
+                return AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "name": "check_available_appointments",
+                            "args": {"starts_at": start.isoformat()},
+                            "id": "tool-check",
+                            "type": "tool_call",
+                        }
+                    ],
+                )
+
+        FakeClient.response = JsonResponse(True)
+        with (
+            patch(
+                "src.nodes.services_request_node.ChatOpenRouter",
+                return_value=FakeAppointmentModel(),
+            ),
+            patch(
+                "src.nodes.tools.services.services_tools.httpx.AsyncClient",
+                FakeClient,
+            ),
+        ):
+            result = await appointment_services_subgraph.ainvoke(
+                {
+                    "business_id": uuid4(),
+                    "current_message": incoming,
+                    "message_category": "new_appointment",
+                    "messages": [incoming],
+                }
+            )
+
+        self.assertEqual(
+            result["confirmed_slot"],
+            {"starts_at": start.isoformat()},
+        )
+        self.assertIsInstance(result["messages"][-1], AIMessage)
+        self.assertEqual(
+            result["messages"][-1].content,
+            "That appointment time is available.",
+        )
 
 
 class AppointmentContinuityRoutingTests(unittest.TestCase):
@@ -266,6 +367,39 @@ class AppointmentContinuityRoutingTests(unittest.TestCase):
         self.assertIsNone(result.get("current_flow"))
         self.assertIsNone(result.get("active_appointment"))
         self.assertIsNone(result.get("confirmed_slot"))
+
+    def test_decline_clears_pending_customer_validation(self):
+        categorizer = SimpleNamespace(
+            invoke=lambda inputs: SimpleNamespace(
+                category=SimpleNamespace(value="decline")
+            )
+        )
+        incoming = HumanMessage(content="No, gracias")
+
+        for pending_question, next_action in (
+            ("existing_customer_email", "request_existing_customer_email"),
+            ("new_customer_details", "request_new_customer_details"),
+        ):
+            with self.subTest(pending_question=pending_question):
+                state = {
+                    "current_message": incoming,
+                    "messages": [incoming],
+                    "current_flow": "appointment_services",
+                    "pending_question": pending_question,
+                    "next_action": next_action,
+                }
+                with patch(
+                    "src.nodes.message_categorizer_node.message_categorizer_agent",
+                    return_value=categorizer,
+                ):
+                    result = message_categorizer_node(state)
+
+                self.assertIsNone(result.get("pending_question"))
+                self.assertIsNone(result.get("next_action"))
+                self.assertEqual(
+                    self.booking_module().route_by_category(result),
+                    "message_writer",
+                )
 
 
 class AppointmentResponseHandoffTests(unittest.TestCase):
