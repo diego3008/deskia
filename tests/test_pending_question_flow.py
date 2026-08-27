@@ -31,6 +31,14 @@ class PendingQuestionFlowTests(unittest.TestCase):
             {(edge.source, edge.target) for edge in graph.edges},
         )
 
+    def test_user_services_flows_to_message_writer(self):
+        graph = booking_graph.get_graph()
+
+        self.assertIn(
+            ("user_services", "message_writer"),
+            {(edge.source, edge.target) for edge in graph.edges},
+        )
+
     def test_new_appointment_requests_customer_email(self):
         result = user_validations_node({"message_category": "new_appointment"})
 
@@ -278,6 +286,44 @@ class MessageStateTests(unittest.TestCase):
         self.assertEqual(result["messages"][0].content, "¿En qué puedo ayudarte?")
         self.assertEqual(state["messages"], [incoming])
         self.assertNotIn("message_response", state)
+
+    def test_writer_passes_workflow_state_and_history_to_the_model(self):
+        class FakeWriter:
+            inputs = None
+
+            def invoke(self, inputs):
+                self.inputs = inputs
+                return {"response": "¿Cuál es tu correo electrónico?"}
+
+        writer = FakeWriter()
+        incoming = HumanMessage(content="Quiero agendar una cita")
+        state = {
+            "current_message": incoming,
+            "message_category": "new_appointment",
+            "messages": [incoming],
+            "pending_question": "existing_customer_email",
+            "next_action": "request_existing_customer_email",
+        }
+
+        with patch(
+            "src.nodes.message_writer_node.message_writer",
+            return_value=writer,
+        ):
+            message_writer_node(state)
+
+        self.assertEqual(
+            {
+                "workflow_context": writer.inputs.get("workflow_context"),
+                "conversation_history": writer.inputs.get("conversation_history"),
+            },
+            {
+                "workflow_context": (
+                    "pending_question: existing_customer_email\n"
+                    "next_action: request_existing_customer_email"
+                ),
+                "conversation_history": "User: Quiero agendar una cita",
+            },
+        )
 
 
 class CustomerLookupTests(unittest.IsolatedAsyncioTestCase):

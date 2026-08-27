@@ -9,7 +9,14 @@ def message_writer():
 
     prompt = PromptTemplate(
         template=MESSAGE_WRITER_PROMPT,
-        input_variables=["message_category", "message_content", "is_first_message"],
+        input_variables=[
+            "message_category",
+            "message_content",
+            "is_first_message",
+            "conversation_history",
+            "workflow_context",
+            "retrieved_services"
+        ],
     )
 
     return prompt | llm.with_structured_output(OutBoundsMessge)

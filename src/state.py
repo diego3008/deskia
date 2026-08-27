@@ -31,12 +31,15 @@ class UserValidationState(TypedDict):
     next_action: str
     user_data: dict
 
+    retrieved_services: str | None
+
 class ServicesInquiryNode(TypedDict):
     messages: Annotated[list, add_messages]
     message_category: str
     current_flow: str
     next_action: str
     user_data: dict = {}
+    retrieved_services: str | None
 
 class MessageGraphState(TypedDict):
     messages: Annotated[list, add_messages]
@@ -47,9 +50,10 @@ class MessageGraphState(TypedDict):
     customer: dict | None
     current_flow: str | None
     next_action: str
-    customer_id: UUID | None
+    customer_id: UUID | str | None
     active_appointment: dict | None
     confirmed_slot: dict | None
     pending_question: str | None
     customer_status: str | None
     user_data: dict = {}
+    retrieved_services: str | None

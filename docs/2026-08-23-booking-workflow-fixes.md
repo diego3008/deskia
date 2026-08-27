@@ -46,7 +46,7 @@ Customer lookup and creation now handle HTTP failures and malformed JSON respons
 
 The booking graph now registers `message_writer`. Greetings, customer complaints, and customer feedback route to it, and the node has a terminal edge to `END`.
 
-Appointment, reschedule, cancellation, service-inquiry, pending-question, and retry states continue to route through `user_services`.
+Appointment, reschedule, cancellation, service-inquiry, pending-question, and retry states route through `user_services` and then into the writer for one customer-facing reply.
 
 ### 7. Redundant Telegram response fix
 
@@ -67,31 +67,21 @@ The focused suite currently contains 29 passing tests covering routing, pending 
 
 `git diff --check` also completes without errors.
 
-## Remaining issue
+### 8. `user_services` response handoff
 
-After `user_services` finishes, the parent graph currently goes directly to `END`. The subgraph can set state such as:
+`user_services` now feeds the existing `message_writer` before the graph ends. The writer receives recent conversation history plus the relevant workflow state:
 
 - `pending_question = existing_customer_email`
 - `next_action = request_existing_customer_email`
 - `pending_question = confirm_create_customer`
 - `next_action = request_new_customer_details`
 
-However, it does not convert that state into a customer-facing assistant message. Clearing stale output prevents duplicate greetings, but Telegram can now receive an empty response for these booking states.
+When a workflow question or action exists, it takes priority over the first-message greeting rule. This prevents a booking request from restarting with a generic greeting and turns the pending state into the next customer-facing question.
 
-The current writer also cannot perform this job yet: it receives the inbound message, category, and first-turn flag, but not `pending_question`, `next_action`, `customer_status`, or recent conversation history.
+An end-to-end graph check for `Hola, quiero agendar una cita para el 24 de Agosto a las 10 am` produced:
 
-## Proposed remaining fix
+> ¡Hola! Con gusto te ayudo a agendar tu cita para el 24 de agosto a las 10:00 am. Para continuar con el proceso, ¿podrías proporcionarme tu correo electrónico?
 
-Keep the existing nodes and make the smallest response handoff:
+## Current limitations
 
-1. Replace the `user_services → END` edge with `user_services → message_writer`.
-2. Pass recent conversation history and the relevant workflow fields to the writer prompt.
-3. Instruct the writer to answer the current workflow state—for example, request the email when `pending_question` is `existing_customer_email`—instead of restarting with a generic greeting.
-4. Preserve the existing direct writer route for greetings, complaints, and feedback.
-5. Add focused regression tests proving that the graph reaches the writer after `user_services`, that workflow context is passed to it, and that only one new assistant-message delta is emitted.
-
-This does not add another response node or a template layer. The existing writer remains the single component responsible for customer-facing language.
-
-## Approval gate
-
-The remaining response-handoff change described above has not been implemented. Implementation and its focused test runs require explicit authorization.
+The workflow can now guide customer identification conversationally, but it does not yet check availability, create appointments, reschedule appointments, cancel appointments, or answer service inquiries from a service catalog.

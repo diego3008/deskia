@@ -1,0 +1,92 @@
+# SERVICIOS DE LA CLÍNICA DENTAL
+# Clínica: [Nombre de la clínica]
+# Moneda: MXN
+# Última actualización: 2026-08-20
+
+---
+
+ID DEL SERVICIO: limpieza-dental
+NOMBRE DEL SERVICIO: Limpieza Dental
+CATEGORÍA: Odontología Preventiva
+PRECIO: 800 MXN
+TIPO DE PRECIO: desde
+DURACIÓN: 30-60 minutos
+ESTADO: activo
+
+DESCRIPCIÓN:
+Limpieza profesional para eliminar placa, sarro y manchas superficiales de los dientes.
+
+IDEAL PARA:
+Pacientes que buscan cuidado preventivo de rutina, aliento más fresco, encías más sanas o eliminar manchas superficiales.
+
+INCLUYE:
+- Revisión oral
+- Eliminación de placa y sarro
+- Pulido dental
+- Recomendaciones personalizadas de higiene oral
+
+PREGUNTAS FRECUENTES:
+P: ¿Duele una limpieza dental?
+R: Generalmente es cómoda. Puede haber sensibilidad leve si las encías están inflamadas.
+
+P: ¿La limpieza blanquea los dientes?
+R: Elimina manchas superficiales, pero no sustituye un tratamiento de blanqueamiento profesional.
+
+SERVICIOS RELACIONADOS:
+Consulta dental, tratamiento de enfermedad de las encías, blanqueamiento dental.
+
+---
+
+ID DEL SERVICIO: blanqueamiento-dental
+NOMBRE DEL SERVICIO: Blanqueamiento Dental
+CATEGORÍA: Odontología Estética
+PRECIO: 3500 MXN
+TIPO DE PRECIO: desde
+DURACIÓN: 60-90 minutos
+ESTADO: activo
+
+DESCRIPCIÓN:
+Tratamiento profesional que aclara el color natural de los dientes y reduce la apariencia de manchas.
+
+IDEAL PARA:
+Adultos con dientes y encías saludables que desean una sonrisa más brillante.
+
+IMPORTANTE:
+Las coronas, carillas, resinas y otras restauraciones no cambian de color con el blanqueamiento.
+Un dentista debe evaluar caries sin tratar o enfermedad activa de las encías antes del tratamiento.
+
+PREGUNTAS FRECUENTES:
+P: ¿Cuánto duran los resultados?
+R: Varían según la alimentación, el consumo de tabaco, la higiene oral y los hábitos de cada paciente.
+
+P: ¿El blanqueamiento causa sensibilidad?
+R: Algunas personas pueden sentir sensibilidad dental temporal.
+
+SERVICIOS RELACIONADOS:
+Limpieza dental, carillas, consulta estética.
+
+---
+
+ID DEL SERVICIO: tratamiento-de-conductos
+NOMBRE DEL SERVICIO: Tratamiento de Conductos
+CATEGORÍA: Odontología Restaurativa
+PRECIO: 4500-8000 MXN
+TIPO DE PRECIO: rango
+DURACIÓN: 1-3 citas
+ESTADO: activo
+
+DESCRIPCIÓN:
+Tratamiento que elimina el tejido infectado o dañado dentro de un diente para aliviar el dolor y conservar la pieza dental.
+
+IDEAL PARA:
+Pacientes con dolor dental intenso, caries profundas, infección o traumatismo que afecta la pulpa dental.
+
+IMPORTANTE:
+El precio final depende del diente, la cantidad de raíces, la gravedad de la infección y de si se requiere una corona posteriormente.
+
+PREGUNTAS FRECUENTES:
+P: ¿Duele un tratamiento de conductos?
+R: Se realiza con anestesia. Su objetivo normalmente es aliviar el dolor causado por una infección.
+
+SERVICIOS RELACIONADOS:
+Corona dental, consulta de urgencia, resina dental.

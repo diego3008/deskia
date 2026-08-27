@@ -48,7 +48,7 @@ conversation. Use clean formats for the messages, don't use special characters i
 def services_request_node(state: MessageGraphState):
     business_id = state["business_id"]
 
-    llm = ChatOpenRouter(model="~anthropic/claude-haiku-latest", temperature=0)
+    llm = ChatOpenRouter(model="google/gemini-3.7-flash", temperature=0)
     llm_with_tools = llm.bind_tools(tools)
 
     plan = state.get("service_plan")

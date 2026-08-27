@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-loader = TextLoader("src/data/dental_services.txt")
+loader = TextLoader("src/data/services.txt")
 
 
 def retriever_tool():

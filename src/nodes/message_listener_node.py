@@ -13,4 +13,5 @@ def message_listener_node(state: MessageGraphState) -> MessageGraphState:
     return {
         "current_message": last_message,
         "message_response": "",
+        "retrieved_services": ""
     }
