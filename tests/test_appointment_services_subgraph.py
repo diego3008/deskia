@@ -121,5 +121,21 @@ class ValidatedCustomerHandoffTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.get("next_action"), "retry_customer_creation")
 
 
+class AppointmentServicesGraphTests(unittest.TestCase):
+    def test_subgraph_compiles_as_a_tool_loop(self):
+        from src.graph.appointment_services_subgraph import (
+            appointment_services_subgraph,
+        )
+
+        graph = appointment_services_subgraph.get_graph()
+        edges = {(edge.source, edge.target) for edge in graph.edges}
+
+        self.assertIn("appointment_agent", graph.nodes)
+        self.assertIn("tools", graph.nodes)
+        self.assertIn(("__start__", "appointment_agent"), edges)
+        self.assertIn(("appointment_agent", "tools"), edges)
+        self.assertIn(("tools", "appointment_agent"), edges)
+
+
 if __name__ == "__main__":
     unittest.main()
