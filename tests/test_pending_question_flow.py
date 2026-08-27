@@ -257,7 +257,11 @@ class MessageStateTests(unittest.TestCase):
 
         self.assertEqual(
             result,
-            {"current_message": incoming, "message_response": ""},
+            {
+                "current_message": incoming,
+                "message_response": "",
+                "retrieved_services": "",
+            },
         )
         self.assertNotIn("current_message", state)
         self.assertEqual(state["message_response"], "Respuesta anterior")

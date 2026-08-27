@@ -82,6 +82,10 @@ An end-to-end graph check for `Hola, quiero agendar una cita para el 24 de Agost
 
 > ¡Hola! Con gusto te ayudo a agendar tu cita para el 24 de agosto a las 10:00 am. Para continuar con el proceso, ¿podrías proporcionarme tu correo electrónico?
 
-## Current limitations
+## Current capabilities
 
-The workflow can now guide customer identification conversationally, but it does not yet check availability, create appointments, reschedule appointments, cancel appointments, or answer service inquiries from a service catalog.
+After customer lookup or creation, the parent graph continues into the appointment-services subgraph. The subgraph can check a requested slot, book it, find an existing customer appointment, and reschedule it while preserving the active flow across short replies.
+
+## Remaining limitations
+
+Appointment cancellation remains unavailable until the agent has a cancellation tool backed by a confirmed API contract. Service inquiries still require the service-catalog/RAG implementation in `services_inquiry_node`.
