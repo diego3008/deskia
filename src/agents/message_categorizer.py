@@ -11,7 +11,7 @@ load_dotenv()
 def message_categorizer_agent():
     message_categorizer_prompt = PromptTemplate(
         template=MESSAGE_CATEGORIZER_PROMPT,
-        input_variables=["message"]
+        input_variables=["message", "history"]
     )
 
     llm = ChatOpenRouter(model="google/gemini-3.7-flash", temperature=0)

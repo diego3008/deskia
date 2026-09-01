@@ -58,7 +58,14 @@ def services_request_node(state: MessageGraphState):
     else:
         system_content = SERVICES_REQUEST_SYSTEM_PROMPT
 
-    messages = [SystemMessage(content=system_content), LANGUAGE_DIRECTIVE] + state["messages"]
+    context = [SystemMessage(content=system_content), LANGUAGE_DIRECTIVE]
+    if state.get("conversation_summary"):
+        context.append(
+            SystemMessage(
+                content=f"Conversation summary:\n{state['conversation_summary']}"
+            )
+        )
+    messages = context + state["messages"]
     response = llm_with_tools.invoke(
         messages, config={"configurable": {"business_id": str(business_id)}}
     )

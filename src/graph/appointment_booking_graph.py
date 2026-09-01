@@ -32,6 +32,7 @@ class AppointmentBooking:
     def __init__(self):
         workflow = StateGraph(MessageGraphState)
         workflow.add_node("message_listener", NODES["message_listener"])
+        workflow.add_node("should_compact", NODES["compact_context"])
         workflow.add_node("category", NODES["message_categorizer"])
         workflow.add_node("user_services", user_services_subgraph)
         workflow.add_node("appointment_services", appointment_services_subgraph)
@@ -39,7 +40,8 @@ class AppointmentBooking:
         workflow.add_node("fallback", fallback_node)
 
         workflow.add_edge(START, "message_listener")
-        workflow.add_edge("message_listener", "category")
+        workflow.add_edge("message_listener", "should_compact")
+        workflow.add_edge("should_compact", "category")
 
         workflow.add_conditional_edges(
             "category",

@@ -36,7 +36,9 @@ def message_writer_node(state: MessageGraphState) -> MessageGraphState:
             "message_content": body,
             "message_category": category,
             "is_first_message": is_first_message,
-            "conversation_history": helpers["build_recent_history"](state["messages"]),
+            "conversation_history": helpers["build_recent_history"](
+                state["messages"], state.get("conversation_summary")
+            ),
             "workflow_context": _workflow_context(state),
             "retrieved_services": retrieved_services,
         }

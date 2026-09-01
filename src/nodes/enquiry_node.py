@@ -40,8 +40,14 @@ def enquiry_node(state: MessageGraphState):
       
       llm_with_tools = llm.bind_tools(messages_tools)
 
-      messages = [SystemMessage(
-         content=ENQUIRY_SYSTEM_PROMPT), LANGUAGE_DIRECTIVE] + state["messages"]
+      summary = state.get("conversation_summary")
+      context = [
+         SystemMessage(content=ENQUIRY_SYSTEM_PROMPT),
+         LANGUAGE_DIRECTIVE,
+      ]
+      if summary:
+         context.append(SystemMessage(content=f"Conversation summary:\n{summary}"))
+      messages = context + state["messages"]
 
       response = llm_with_tools.invoke(messages,
                            config={"configurable": {"business_id": str(business_id)}})

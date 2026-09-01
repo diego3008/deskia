@@ -19,7 +19,9 @@ def message_categorizer_node(state: MessageGraphState):
         state["message_category"] = "no message"
         return state
 
-    history = helpers["build_recent_history"](state["messages"])
+    history = helpers["build_recent_history"](
+        state["messages"], state.get("conversation_summary")
+    )
     result = message_categorizer_agent().invoke(
         {"message": body, "history": history}
     )

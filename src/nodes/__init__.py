@@ -1,3 +1,4 @@
+from src.nodes.compact_context_node import compact_context_node
 from src.nodes.services_request_node import services_request_node
 from src.nodes.enquiry_node import enquiry_node
 from src.nodes.message_categorizer_node import message_categorizer_node
@@ -14,7 +15,8 @@ NODES = {
     "message_writer": message_writer_node,
     "enquiry": enquiry_node,
     "customer": customer_node,
-    "fallback": fallback_node
+    "fallback": fallback_node,
+    "compact_context": compact_context_node
 }
 
 SERVICES_REQUEST_NODES = {

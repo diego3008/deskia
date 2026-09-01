@@ -29,7 +29,14 @@ def customer_node(state: MessageGraphState):
 
     llm_with_tools = llm.bind_tools(customer_tools)
 
-    messages = [SystemMessage(content=CUSTOMER_SYSTEM_PROMPT), LANGUAGE_DIRECTIVE] + state["messages"]
+    context = [SystemMessage(content=CUSTOMER_SYSTEM_PROMPT), LANGUAGE_DIRECTIVE]
+    if state.get("conversation_summary"):
+        context.append(
+            SystemMessage(
+                content=f"Conversation summary:\n{state['conversation_summary']}"
+            )
+        )
+    messages = context + state["messages"]
 
     response = llm_with_tools.invoke(
         messages, config={"configurable": {"business_id": str(business_id)}}

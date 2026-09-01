@@ -33,6 +33,7 @@ class UserValidationState(TypedDict):
     customer: dict | None
     customer_id: UUID | str | None
     retrieved_services: str | None
+    conversation_summary: str | None
 
 class ServicesInquiryNode(TypedDict):
     messages: Annotated[list, add_messages]
@@ -58,3 +59,4 @@ class MessageGraphState(TypedDict):
     customer_status: str | None
     user_data: dict = {}
     retrieved_services: str | None
+    conversation_summary: str | None

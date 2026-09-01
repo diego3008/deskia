@@ -88,7 +88,9 @@ def services_planner_node(state: MessageGraphState) -> dict:
     if not body:
         return {}
 
-    history = helpers["build_recent_history"](state.get("messages", []))
+    history = helpers["build_recent_history"](
+        state.get("messages", []), state.get("conversation_summary")
+    )
 
     # Graceful degradation: any failure leaves the plan unset and the subgraph
     # behaves like today's plain ReAct loop.
