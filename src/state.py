@@ -59,6 +59,10 @@ class MessageGraphState(TypedDict):
     confirmed_slot: dict | None
     pending_question: str | None
     customer_status: str | None
+    appointment_outcome: dict | None
+    email_draft: dict | None
+    email_confirmation: dict | None
+    email_receipts: dict[str, dict]
     user_data: dict = {}
     retrieved_services: str | None
     conversation_summary: str | None

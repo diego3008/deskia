@@ -338,6 +338,7 @@ class AppointmentIntentTests(unittest.TestCase):
 class AppointmentExplicitGraphTests(unittest.TestCase):
     def test_actions_are_terminal_and_do_not_consume_apis(self):
         from src.graph.appointment_services_subgraph import appointment_services_subgraph
+        from src.graph.appointment_booking_graph import route_after_message_writer
         graph = appointment_services_subgraph.get_graph()
         edges = {(e.source, e.target) for e in graph.edges}
         self.assertNotIn("tools", graph.nodes)
@@ -373,6 +374,8 @@ class AppointmentExplicitGraphTests(unittest.TestCase):
                 for field in ("appointment_intent", "current_flow", "next_action",
                               "pending_question", "confirmed_slot", "active_appointment"):
                     self.assertIsNone(result[field])
+                self.assertIsNone(result["appointment_outcome"])
+                self.assertEqual(route_after_message_writer(result), "end")
 
     def test_validation_rejects_stale_intent_and_contextless_confirmation(self):
         from src.nodes.appointment_services.appointment_validation_node import (

@@ -8,7 +8,9 @@ from src.nodes import NODES
 from src.state import MessageGraphState
 from src.graph.user_services_validation_subgraph import user_services_subgraph
 from src.graph.appointment_services_subgraph import appointment_services_subgraph
+from src.graph.email_confirmation_subgraph import email_confirmation_graph
 from src.helpers.workflow import customer_validation_pending, has_validated_customer
+from src.nodes.email_confirmation_nodes import successful_outcome
 from src.structured_outputs import APPOINTMENT_CATEGORIES
 
 WRITER_CATEGORIES = {
@@ -28,6 +30,7 @@ class AppointmentBooking:
         workflow.add_node("category", NODES["message_categorizer"])
         workflow.add_node("user_services", user_services_subgraph)
         workflow.add_node("appointment_services", appointment_services_subgraph)
+        workflow.add_node("email_confirmation", email_confirmation_graph)
         workflow.add_node("message_writer", NODES["message_writer"])
         workflow.add_node("fallback", fallback_node)
 
@@ -55,7 +58,12 @@ class AppointmentBooking:
             },
         )
         workflow.add_edge("appointment_services", "message_writer")
-        workflow.add_edge("message_writer", END)
+        workflow.add_conditional_edges(
+            "message_writer",
+            route_after_message_writer,
+            {"email_confirmation": "email_confirmation", "end": END},
+        )
+        workflow.add_edge("email_confirmation", END)
         workflow.add_edge("fallback", END)
 
         self.graph = workflow.compile()
@@ -92,6 +100,15 @@ def route_after_user_services(
     ):
         return "appointment_services"
     return "message_writer"
+
+
+def route_after_message_writer(
+    state: MessageGraphState,
+) -> Literal["email_confirmation", "end"]:
+    outcome = successful_outcome(state)
+    if outcome and outcome.operation_id not in (state.get("email_receipts") or {}):
+        return "email_confirmation"
+    return "end"
 
 
 def fallback_node(state: MessageGraphState) -> dict:

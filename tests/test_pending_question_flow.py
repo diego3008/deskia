@@ -6,7 +6,11 @@ import httpx
 from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import ValidationError
 
-from src.graph.appointment_booking_graph import booking_graph, route_by_category
+from src.graph.appointment_booking_graph import (
+    booking_graph,
+    route_after_message_writer,
+    route_by_category,
+)
 from src.graph.user_services_validation_subgraph import router_request
 from src.models.customers import CustomerCreate, CustomerInput
 from src.nodes.user_services_validation.customer_creation_node import customer_creation_node
@@ -22,14 +26,14 @@ class PendingQuestionFlowTests(unittest.TestCase):
         for category in {"greeting", "customer_complaint", "customer_feedback"}:
             self.assertEqual(route_by_category({"message_category": category}), "message_writer")
 
-    def test_message_writer_is_a_terminal_graph_node(self):
+    def test_message_writer_routes_to_email_or_end(self):
         graph = booking_graph.get_graph()
+        edges = {(edge.source, edge.target) for edge in graph.edges}
 
         self.assertIn("message_writer", graph.nodes)
-        self.assertIn(
-            ("message_writer", "__end__"),
-            {(edge.source, edge.target) for edge in graph.edges},
-        )
+        self.assertIn(("message_writer", "email_confirmation"), edges)
+        self.assertIn(("message_writer", "__end__"), edges)
+        self.assertEqual(route_after_message_writer({"message_category": "greeting"}), "end")
 
     def test_user_services_flows_to_message_writer(self):
         graph = booking_graph.get_graph()
@@ -261,6 +265,9 @@ class MessageStateTests(unittest.TestCase):
                 "current_message": incoming,
                 "message_response": "",
                 "retrieved_services": "",
+                "appointment_outcome": None,
+                "email_draft": None,
+                "email_confirmation": None,
             },
         )
         self.assertNotIn("current_message", state)

@@ -32,4 +32,5 @@ def clear_appointment_state() -> dict:
         "next_action": None,
         "active_appointment": None,
         "confirmed_slot": None,
+        "appointment_outcome": None,
     }
