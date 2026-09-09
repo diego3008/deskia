@@ -19,6 +19,15 @@ from src.nodes.user_services_validation.customer_creation_node import (
 from src.nodes.user_services_validation.customer_lookup_node import customer_lookup_node
 
 
+APPOINTMENT_CASES = {
+    "new_appointment": "book_appointment",
+    "check_availability": "check_availability",
+    "reschedule_appointment": "reschedule_appointment",
+    "cancel_appointment": "cancel_appointment",
+    "view_appointment": "view_appointment",
+}
+
+
 class JsonResponse:
     status_code = 200
 
@@ -174,80 +183,300 @@ class ValidatedCustomerHandoffTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.get("next_action"), "retry_customer_creation")
 
 
-class AppointmentServicesGraphTests(unittest.TestCase):
-    def test_subgraph_compiles_as_a_tool_loop(self):
-        from src.graph.appointment_services_subgraph import (
-            appointment_services_subgraph,
-        )
-
-        graph = appointment_services_subgraph.get_graph()
-        edges = {(edge.source, edge.target) for edge in graph.edges}
-
-        self.assertIn("appointment_agent", graph.nodes)
-        self.assertIn("tools", graph.nodes)
-        self.assertIn(("__start__", "appointment_agent"), edges)
-        self.assertIn(("appointment_agent", "tools"), edges)
-        self.assertIn(("tools", "appointment_agent"), edges)
-
-
-class AppointmentServicesGraphIntegrationTests(unittest.IsolatedAsyncioTestCase):
-    async def test_compiled_tool_loop_executes_tool_and_returns_final_agent_message(self):
-        from src.graph.appointment_services_subgraph import (
-            appointment_services_subgraph,
-        )
-
-        start = datetime.fromisoformat("2026-08-28T10:00:00")
-        incoming = HumanMessage(content="Is tomorrow at ten available?")
-
-        class FakeAppointmentModel:
-            def bind_tools(self, bound_tools):
-                return self
-
-            def invoke(self, messages, config=None):
-                if any(message.type == "tool" for message in messages):
-                    return AIMessage(content="That appointment time is available.")
-                return AIMessage(
-                    content="",
-                    tool_calls=[
-                        {
-                            "name": "check_available_appointments",
-                            "args": {"starts_at": start.isoformat()},
-                            "id": "tool-check",
-                            "type": "tool_call",
-                        }
-                    ],
-                )
-
-        FakeClient.response = JsonResponse(True)
-        with (
-            patch(
-                "src.nodes.services_request_node.ChatOpenRouter",
-                return_value=FakeAppointmentModel(),
-            ),
-            patch(
-                "src.nodes.tools.services.services_tools.httpx.AsyncClient",
+    async def test_all_intents_survive_compiled_customer_lookup(self):
+        from src.graph.user_services_validation_subgraph import user_services_subgraph
+        from src.graph.appointment_services_subgraph import appointment_services_subgraph
+        from src.graph.appointment_booking_graph import route_after_user_services
+        FakeClient.response = JsonResponse({"id": "customer-1", "email": "ana@example.com"})
+        for intent in APPOINTMENT_CASES.values():
+            with self.subTest(intent=intent), patch(
+                "src.nodes.user_services_validation.customer_lookup_node.httpx.AsyncClient",
                 FakeClient,
-            ),
-        ):
-            result = await appointment_services_subgraph.ainvoke(
-                {
-                    "business_id": uuid4(),
-                    "current_message": incoming,
-                    "message_category": "new_appointment",
-                    "messages": [incoming],
-                }
+            ):
+                result = await user_services_subgraph.ainvoke({
+                    "messages": [HumanMessage(content="ana@example.com")],
+                    "business_id": uuid4(), "message_category": "unrelated",
+                    "current_flow": "appointment_services", "appointment_intent": intent,
+                    "pending_question": "existing_customer_email",
+                })
+            self.assertEqual(result["appointment_intent"], intent)
+            self.assertEqual(route_after_user_services(result), "appointment_services")
+            final = await appointment_services_subgraph.ainvoke(result)
+            self.assertIn("pendiente", final["messages"][-1].content)
+            self.assertIsNone(final["appointment_intent"])
+
+    async def test_intent_survives_creation_confirmation_and_details(self):
+        from src.graph.user_services_validation_subgraph import user_services_subgraph
+        for intent in APPOINTMENT_CASES.values():
+            result = await user_services_subgraph.ainvoke({
+                "messages": [HumanMessage(content="Sí")],
+                "business_id": uuid4(), "message_category": "confirmation",
+                "current_flow": "appointment_services", "appointment_intent": intent,
+                "pending_question": "confirm_create_customer",
+                "user_data": {"email": "ana@example.com"},
+            })
+            self.assertEqual(result["pending_question"], "new_customer_details")
+            self.assertEqual(result["appointment_intent"], intent)
+            FakeClient.response = JsonResponse({"id": "customer-1", "email": "ana@example.com"})
+            with patch(
+                "src.nodes.user_services_validation.customer_creation_node.httpx.AsyncClient",
+                FakeClient,
+            ):
+                result = await user_services_subgraph.ainvoke({
+                    **result, "messages": [HumanMessage(content="Ana López")],
+                })
+            self.assertEqual(result["appointment_intent"], intent)
+            self.assertEqual(result["customer_id"], "customer-1")
+
+
+class CustomerValidationHandoffRegressionTests(unittest.IsolatedAsyncioTestCase):
+    def test_pending_identity_blocks_handoff_with_cached_customer(self):
+        from src.graph.appointment_booking_graph import route_after_user_services
+
+        for identity in ({"customer_id": "customer-1"}, {"customer": {"id": "customer-1"}}):
+            for pending in (
+                {"pending_question": "existing_customer_email"},
+                {"pending_question": "confirm_create_customer"},
+                {"pending_question": "new_customer_details"},
+                {"next_action": "retry_customer_lookup"},
+                {"next_action": "retry_customer_creation"},
+            ):
+                with self.subTest(identity=identity, pending=pending):
+                    self.assertEqual(route_after_user_services({
+                        "current_flow": "appointment_services", **identity, **pending,
+                    }), "message_writer")
+
+    async def test_repeated_failed_lookup_preserves_retry_in_parent(self):
+        from src.graph.appointment_booking_graph import booking_graph
+
+        FakeClient.response = JsonResponse([])
+        state = {
+            "business_id": uuid4(), "customer_id": "customer-1",
+            "current_flow": "appointment_services", "appointment_intent": "view_appointment",
+            "next_action": "retry_customer_lookup", "user_data": {"email": "ana@example.com"},
+        }
+        with patch(
+            "src.nodes.user_services_validation.customer_lookup_node.httpx.AsyncClient", FakeClient,
+        ), patch(
+            "src.nodes.message_categorizer_node.message_categorizer_agent",
+        ) as categorizer, patch(
+            "src.nodes.message_writer_node.message_writer",
+        ) as writer:
+            categorizer.return_value.invoke.return_value = SimpleNamespace(
+                category=SimpleNamespace(value="view_appointment"),
             )
+            writer.return_value.invoke.return_value = {"response": "Necesito reintentar la búsqueda."}
+            for _ in range(2):
+                state = await booking_graph.ainvoke({
+                    **state, "messages": [HumanMessage(content="Quiero ver mi cita")],
+                })
+                self.assertEqual(state["next_action"], "retry_customer_lookup")
+                self.assertEqual(state["appointment_intent"], "view_appointment")
+                self.assertEqual(state["current_flow"], "appointment_services")
+                self.assertEqual(state["customer_id"], "customer-1")
+                self.assertEqual(state["message_response"], "Necesito reintentar la búsqueda.")
 
-        self.assertEqual(
-            result["confirmed_slot"],
-            {"starts_at": start.isoformat()},
-        )
-        self.assertIsInstance(result["messages"][-1], AIMessage)
-        self.assertEqual(
-            result["messages"][-1].content,
-            "That appointment time is available.",
-        )
 
+class AppointmentIntentTests(unittest.TestCase):
+    def categorize(self, category, **state):
+        message = HumanMessage(content="Solicitud de prueba")
+        agent = SimpleNamespace(invoke=lambda inputs: SimpleNamespace(
+            category=SimpleNamespace(value=category)))
+        with patch(
+            "src.nodes.message_categorizer_node.message_categorizer_agent",
+            return_value=agent,
+        ):
+            return message_categorizer_node({
+                **state, "current_message": message, "messages": [message],
+            })
+
+    def test_all_actions_and_identity_continuity(self):
+        from src.structured_outputs import MessageCategory
+        for category, intent in APPOINTMENT_CASES.items():
+            with self.subTest(category=category):
+                self.assertEqual(MessageCategory(category).value, category)
+                result = self.categorize(category)
+                self.assertEqual(result["appointment_intent"], intent)
+                self.assertEqual(result["current_flow"], "appointment_services")
+                result = self.categorize("confirmation", **result)
+                self.assertEqual(result["appointment_intent"], intent)
+
+    def test_switch_preserves_customer_question_but_clears_slot(self):
+        result = self.categorize(
+            "cancel_appointment", appointment_intent="book_appointment",
+            current_flow="appointment_services",
+            pending_question="existing_customer_email",
+            next_action="request_existing_customer_email",
+            confirmed_slot={"starts_at": "2026-09-10T10:00:00"},
+            active_appointment={"id": "old"},
+        )
+        self.assertEqual(result["appointment_intent"], "cancel_appointment")
+        self.assertEqual(result["pending_question"], "existing_customer_email")
+        self.assertIsNone(result["confirmed_slot"])
+        self.assertIsNone(result["active_appointment"])
+
+    def test_decline_and_service_inquiry_clear_intent(self):
+        for category in ("decline", "service_inquiry", "greeting"):
+            result = self.categorize(
+                category, appointment_intent="cancel_appointment",
+                current_flow="appointment_services",
+            )
+            self.assertIsNone(result["appointment_intent"])
+            self.assertIsNone(result["current_flow"])
+
+    def test_ambiguous_request_does_not_reuse_the_previous_action(self):
+        result = self.categorize(
+            "service_request", appointment_intent="cancel_appointment",
+            current_flow="appointment_services", next_action="cancel_appointment",
+            confirmed_slot={"starts_at": "stale"},
+        )
+        self.assertIsNone(result["appointment_intent"])
+        self.assertIsNone(result["next_action"])
+        self.assertIsNone(result["confirmed_slot"])
+
+
+class AppointmentExplicitGraphTests(unittest.TestCase):
+    def test_actions_are_terminal_and_do_not_consume_apis(self):
+        from src.graph.appointment_services_subgraph import appointment_services_subgraph
+        graph = appointment_services_subgraph.get_graph()
+        edges = {(e.source, e.target) for e in graph.edges}
+        self.assertNotIn("tools", graph.nodes)
+        self.assertNotIn("appointment_agent", graph.nodes)
+        self.assertIn("appointment_validation", graph.nodes)
+        for category, action in APPOINTMENT_CASES.items():
+            with self.subTest(action=action), patch(
+                "httpx.AsyncClient", side_effect=AssertionError("Unexpected HTTP")
+            ), patch(
+                "langchain_openrouter.ChatOpenRouter",
+                side_effect=AssertionError("Unexpected appointment LLM"),
+            ):
+                self.assertIn((action, "__end__"), edges)
+                result = appointment_services_subgraph.invoke({
+                    "messages": [HumanMessage(content="Solicitud")],
+                    "message_category": category,
+                    "business_id": str(uuid4()), "customer_id": "customer-1",
+                    "current_flow": "appointment_services",
+                    "confirmed_slot": {"starts_at": "stale"},
+                    "active_appointment": {"id": "stale"},
+                })
+                self.assertIsInstance(result["messages"][-1], AIMessage)
+                self.assertIn("pendiente", result["messages"][-1].content)
+                expected_phrase = {
+                    "book_appointment": "agendar citas",
+                    "check_availability": "consultar horarios",
+                    "reschedule_appointment": "reprogramar citas",
+                    "cancel_appointment": "cancelar citas",
+                    "view_appointment": "consultar tus citas",
+                }[action]
+                self.assertIn(expected_phrase, result["messages"][-1].content)
+                self.assertEqual(result["customer_id"], "customer-1")
+                for field in ("appointment_intent", "current_flow", "next_action",
+                              "pending_question", "confirmed_slot", "active_appointment"):
+                    self.assertIsNone(result[field])
+
+    def test_validation_rejects_stale_intent_and_contextless_confirmation(self):
+        from src.nodes.appointment_services.appointment_validation_node import (
+            appointment_validation_node,
+        )
+        for category in ("unrelated", "", "not_a_category", "confirmation"):
+            state = {"message_category": category,
+                     "appointment_intent": "book_appointment",
+                     "next_action": "book_appointment"}
+            self.assertEqual(appointment_validation_node(state)["next_action"],
+                             "clarify_appointment_intent")
+        for category, intent in (
+            ("unrelated", "book_appointment"),
+            ("", "book_appointment"),
+            ("not_a_category", "book_appointment"),
+            ("service_request", "book_appointment"),
+            ("confirmation", "not_an_intent"),
+        ):
+            with self.subTest(category=category, intent=intent):
+                result = appointment_validation_node({
+                    "message_category": category, "appointment_intent": intent,
+                    "current_flow": "appointment_services", "next_action": "book_appointment",
+                })
+                self.assertEqual(result["next_action"], "clarify_appointment_intent")
+                self.assertIsNone(result["appointment_intent"])
+        result = appointment_validation_node({
+            "message_category": "confirmation", "appointment_intent": "view_appointment",
+            "current_flow": "appointment_services",
+        })
+        self.assertEqual(result["next_action"], "view_appointment")
+
+    def test_unknown_intent_clarifies_and_missing_identity_terminates(self):
+        from src.graph.appointment_services_subgraph import appointment_services_subgraph
+        base = {"messages": [HumanMessage(content="Sí")],
+                "message_category": "confirmation", "current_flow": "appointment_services",
+                "business_id": str(uuid4()), "customer_id": "customer-1"}
+        result = appointment_services_subgraph.invoke(base)
+        self.assertEqual(result["pending_question"], "appointment_intent")
+        self.assertEqual(result["next_action"], "clarify_appointment_intent")
+        for missing in ("business_id", "customer_id"):
+            result = appointment_services_subgraph.invoke({
+                **base, missing: None, "message_category": "cancel_appointment",
+            })
+            self.assertIsNone(result["current_flow"])
+            self.assertIn("validar", result["messages"][-1].content)
+
+
+class AppointmentExpandedRoutingTests(unittest.TestCase):
+    def test_action_switch_does_not_answer_customer_questions(self):
+        from src.nodes.user_services_validation.user_validation_node import user_validations_node
+
+        for question, action in (
+            ("existing_customer_email", "request_existing_customer_email"),
+            ("confirm_create_customer", "confirm_create_customer"),
+            ("new_customer_details", "request_new_customer_details"),
+        ):
+            with self.subTest(question=question):
+                result = user_validations_node({
+                    "message_category": "cancel_appointment",
+                    "pending_question": question,
+                    "messages": [HumanMessage(content="Cancela mi cita")],
+                    "user_data": {"email": "ana@example.com"},
+                })
+                self.assertEqual(result["pending_question"], question)
+                self.assertEqual(result["next_action"], action)
+                self.assertNotIn("user_data", result)
+
+    def test_every_category_enters_identification_then_appointment_services(self):
+        from src.graph.appointment_booking_graph import route_by_category, route_after_user_services
+        from src.graph.user_services_validation_subgraph import router_request
+        from src.nodes.user_services_validation.user_validation_node import user_validations_node
+        for category in (*APPOINTMENT_CASES, "service_request"):
+            with self.subTest(category=category):
+                state = {"message_category": category,
+                         "current_flow": "appointment_services",
+                         "appointment_intent": APPOINTMENT_CASES.get(category)}
+                self.assertEqual(route_by_category(state), "user_services")
+                self.assertEqual(router_request(state), "user_validation")
+                self.assertEqual(user_validations_node(state)["pending_question"],
+                                 "existing_customer_email")
+                validated = {**state, "customer": {"id": "customer-1"}}
+                self.assertEqual(route_by_category(validated), "appointment_services")
+                self.assertEqual(route_after_user_services(validated), "appointment_services")
+
+    def test_customer_retry_still_wins_with_a_validated_customer(self):
+        from src.graph.appointment_booking_graph import route_by_category
+        self.assertEqual(route_by_category({
+            "message_category": "view_appointment", "customer_id": "customer-1",
+            "next_action": "retry_customer_lookup",
+        }), "user_services")
+
+    def test_pending_response_reaches_writer_unchanged(self):
+        from src.graph.appointment_services_subgraph import appointment_services_subgraph
+        result = appointment_services_subgraph.invoke({
+            "messages": [HumanMessage(content="Cancela mi cita")],
+            "message_category": "cancel_appointment",
+            "business_id": str(uuid4()), "customer_id": "customer-1",
+        })
+        with patch("src.nodes.message_writer_node.message_writer") as model:
+            written = message_writer_node(result)
+        model.assert_not_called()
+        self.assertEqual(written["message_response"],
+            "La integración para cancelar citas está pendiente. No he cancelado ninguna cita.")
+        self.assertNotIn("messages", written)
 
 class AppointmentContinuityRoutingTests(unittest.TestCase):
     @staticmethod

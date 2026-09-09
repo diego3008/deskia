@@ -26,9 +26,10 @@ class UserValidationState(TypedDict):
     messages: Annotated[list, add_messages]
     message_category: str
     current_flow: str | None
+    appointment_intent: str | None
     pending_question: str | None
     customer_status: str | None
-    next_action: str
+    next_action: str | None
     user_data: dict
     customer: dict | None
     customer_id: UUID | str | None
@@ -51,7 +52,8 @@ class MessageGraphState(TypedDict):
     business_id: UUID
     customer: dict | None
     current_flow: str | None
-    next_action: str
+    appointment_intent: str | None
+    next_action: str | None
     customer_id: UUID | str | None
     active_appointment: dict | None
     confirmed_slot: dict | None

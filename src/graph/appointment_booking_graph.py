@@ -8,22 +8,14 @@ from src.nodes import NODES
 from src.state import MessageGraphState
 from src.graph.user_services_validation_subgraph import user_services_subgraph
 from src.graph.appointment_services_subgraph import appointment_services_subgraph
+from src.helpers.workflow import customer_validation_pending, has_validated_customer
+from src.structured_outputs import APPOINTMENT_CATEGORIES
 
-APPOINTMENT_CATEGORIES = {"new_appointment", "reschedule_appointment"}
 WRITER_CATEGORIES = {
     "greeting",
     "customer_complaint",
     "customer_feedback",
     "decline",
-}
-CUSTOMER_PENDING_QUESTIONS = {
-    "existing_customer_email",
-    "confirm_create_customer",
-    "new_customer_details",
-}
-CUSTOMER_RETRY_ACTIONS = {
-    "retry_customer_lookup",
-    "retry_customer_creation",
 }
 
 
@@ -68,18 +60,10 @@ class AppointmentBooking:
 
         self.graph = workflow.compile()
 
-def _has_validated_customer(state: MessageGraphState) -> bool:
-    customer = state.get("customer") or {}
-    return bool(state.get("customer_id") or customer.get("id"))
-
-
 def route_by_category(
     state: MessageGraphState,
 ) -> Literal["user_services", "appointment_services", "message_writer", "fallback"]:
-    if state.get("next_action") in CUSTOMER_RETRY_ACTIONS:
-        return "user_services"
-
-    if state.get("pending_question") in CUSTOMER_PENDING_QUESTIONS:
+    if customer_validation_pending(state):
         return "user_services"
 
     category = state.get("message_category")
@@ -88,11 +72,11 @@ def route_by_category(
 
     in_appointment_flow = state.get("current_flow") == "appointment_services"
     if category in APPOINTMENT_CATEGORIES or in_appointment_flow:
-        if _has_validated_customer(state):
+        if has_validated_customer(state):
             return "appointment_services"
         return "user_services"
 
-    if category in {"cancel_appointment", "service_inquiry"}:
+    if category == "service_inquiry":
         return "user_services"
 
     return "fallback"
@@ -103,7 +87,8 @@ def route_after_user_services(
 ) -> Literal["appointment_services", "message_writer"]:
     if (
         state.get("current_flow") == "appointment_services"
-        and _has_validated_customer(state)
+        and has_validated_customer(state)
+        and not customer_validation_pending(state)
     ):
         return "appointment_services"
     return "message_writer"

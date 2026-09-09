@@ -3,7 +3,9 @@ import re
 
 from langchain_core.messages import HumanMessage
 
+from src.helpers.workflow import CUSTOMER_QUESTION_ACTIONS
 from src.state import UserValidationState
+from src.structured_outputs import APPOINTMENT_CATEGORIES
 
 
 EMAIL_PATTERN = re.compile(r"(?<![\w.+-])[\w.+-]+@[\w-]+(?:\.[\w-]+)+(?![\w.-])")
@@ -26,15 +28,14 @@ def user_validations_node(state: UserValidationState) -> dict:
     if state.get("next_action") == "retry_customer_creation":
         return {"next_action": "create_customer"}
 
-    if not pending_question and state.get("message_category") in {
-        "new_appointment",
-        "reschedule_appointment",
-        "cancel_appointment",
-    }:
+    if state.get("message_category") in APPOINTMENT_CATEGORIES and (
+        not pending_question or pending_question in CUSTOMER_QUESTION_ACTIONS
+    ):
+        question = pending_question or "existing_customer_email"
         return {
-            "pending_question": "existing_customer_email",
-            "next_action": "request_existing_customer_email",
-            "user_data": {},
+            "pending_question": question,
+            "next_action": CUSTOMER_QUESTION_ACTIONS[question],
+            **({} if pending_question else {"user_data": {}}),
         }
 
     if pending_question == "existing_customer_email":

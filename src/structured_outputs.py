@@ -16,6 +16,18 @@ class MessageCategory(str, Enum):
     new_appointment = "new_appointment"
     reschedule_appointment = "reschedule_appointment"
     cancel_appointment = "cancel_appointment"
+    check_availability = "check_availability"
+    view_appointment = "view_appointment"
+
+
+APPOINTMENT_INTENTS = {
+    "new_appointment": "book_appointment",
+    "check_availability": "check_availability",
+    "reschedule_appointment": "reschedule_appointment",
+    "cancel_appointment": "cancel_appointment",
+    "view_appointment": "view_appointment",
+}
+APPOINTMENT_CATEGORIES = frozenset(APPOINTMENT_INTENTS) | {"service_request"}
 
 
 class CategorizerMessageOutput(BaseModel):
