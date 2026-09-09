@@ -10,23 +10,65 @@ def _build_rag_tool():
     from langchain_chroma import Chroma
     from langchain_community.document_loaders import TextLoader
     from langchain_core.tools.retriever import create_retriever_tool
-    from langchain_huggingface import HuggingFaceEmbeddings  # <-- Cambio clave    
+    from langchain_huggingface import HuggingFaceEmbeddings
     from langchain_text_splitters import RecursiveCharacterTextSplitter
-    model = HuggingFaceEmbeddings(model_name="paraphrase-multilingual-MiniLM-L12-v2")    
     load_dotenv()
-    loader = TextLoader("src/data/services.txt")
-    documents = loader.load()
-    text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
-        chunk_size=100,
-        chunk_overlap=50
+
+    embeddings = HuggingFaceEmbeddings(
+        model_name="paraphrase-multilingual-MiniLM-L12-v2"
     )
-    docs_splits = text_splitter.split_documents(documents)
 
-    vectorstore = Chroma.from_documents(documents=docs_splits, embedding=model, persist_directory="./chroma_db")
-    retriever = vectorstore.as_retriever(search_kwargs={"k":6})
+    vectorstore = Chroma(
+        collection_name="booker_services_v1",
+        embedding_function=embeddings,
+        persist_directory="./chroma_db",
+    )
 
-    retriever_tool = create_retriever_tool(retriever, "retrieve_products_and_services_information", "Search and return information about products and serivices.")
-    return retriever_tool
+    # Evita insertar los mismos documentos cada vez que se inicializa el agente
+    existing_docs = vectorstore.get(limit=1)
+
+    if not existing_docs["ids"]:
+        loader = TextLoader(
+            "src/data/services.txt",
+            encoding="utf-8"
+        )
+
+        documents = loader.load()
+
+        for document in documents:
+            document.metadata.update({
+                "source_type": "services_catalog",
+                "source": "services.txt",
+            })
+
+        text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+            chunk_size=500,
+            chunk_overlap=50,
+        )
+
+        docs_splits = text_splitter.split_documents(documents)
+
+        vectorstore.add_documents(docs_splits)
+
+    retriever = vectorstore.as_retriever(
+        search_type="mmr",
+        search_kwargs={
+            "k": 10,
+            "fetch_k": 30,
+            "lambda_mult": 0.5,
+        },
+    )
+
+    return create_retriever_tool(
+        retriever,
+        name="search_services_information",
+        description=(
+            "Search for specific information about services, prices, "
+            "durations, requirements, and business policies. "
+            "Do not use this tool when the user requests the complete "
+            "list of services; use the service catalog tool instead."
+        ),
+    )
 
 
 def get_rag_tool():
