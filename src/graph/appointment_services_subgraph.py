@@ -22,7 +22,11 @@ def router_request(state: MessageGraphState) -> str:
 
 def route_appointment_validation(state: MessageGraphState) -> str:
     action = state.get("next_action")
-    allowed_actions = {*APPOINTMENT_INTENTS.values(), "collect_appointment_details"}
+    allowed_actions = {
+        *APPOINTMENT_INTENTS.values(),
+        "collect_appointment_details",
+        "lookup_appointment",
+    }
     return action if action in allowed_actions else "fallback"
 
 
@@ -30,6 +34,14 @@ def route_after_appointment_details(state: MessageGraphState) -> str:
     return (
         "check_availability"
         if state.get("next_action") == "check_availability"
+        else "end"
+    )
+
+
+def route_after_appointment_lookup(state: MessageGraphState) -> str:
+    return (
+        "collect_appointment_details"
+        if state.get("next_action") == "collect_appointment_details"
         else "end"
     )
 
@@ -67,8 +79,14 @@ class AppointmentServicesSubgraph:
             {
                 **{action: action for action in APPOINTMENT_INTENTS.values()},
                 "collect_appointment_details": "collect_appointment_details",
+                "lookup_appointment": "lookup_appointment",
                 "fallback": "fallback",
             },
+        )
+        workflow.add_conditional_edges(
+            "lookup_appointment",
+            route_after_appointment_lookup,
+            {"collect_appointment_details": "collect_appointment_details", "end": END},
         )
         workflow.add_conditional_edges(
             "collect_appointment_details",

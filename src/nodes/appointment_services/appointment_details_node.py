@@ -64,9 +64,9 @@ def appointment_details_node(state: MessageGraphState) -> dict:
         }
     )
     service_name = (
-        extracted.service_name
-        if extracted.service_name is not None
-        else state.get("service_name")
+        state.get("service_name")
+        if state.get("appointment_intent") == "reschedule_appointment"
+        else extracted.service_name or state.get("service_name")
     )
     starts_at = (
         extracted.starts_at

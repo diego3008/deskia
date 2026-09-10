@@ -36,8 +36,27 @@ def appointment_validation_node(state: MessageGraphState) -> dict:
     )
     if intent in {"book_appointment", "check_availability"} and not booking_confirmed:
         next_action = "collect_appointment_details"
+    reschedule_confirmed = (
+        category == "confirmation"
+        and state.get("pending_question") == "reschedule_confirmation"
+        and state.get("active_appointment")
+        and state.get("starts_at")
+        and state.get("ends_at")
+    )
+    if intent == "reschedule_appointment" and not reschedule_confirmed:
+        next_action = "collect_appointment_details"
+    if intent in {"reschedule_appointment", "cancel_appointment"} and not state.get(
+        "active_appointment"
+    ):
+        next_action = "lookup_appointment"
+    pending_question = (
+        state.get("pending_question")
+        if category == "confirmation"
+        and next_action in {"reschedule_appointment", "cancel_appointment"}
+        else None if intent else "appointment_intent"
+    )
     return {
         "appointment_intent": intent,
         "next_action": next_action or "clarify_appointment_intent",
-        "pending_question": None if intent else "appointment_intent",
+        "pending_question": pending_question,
     }

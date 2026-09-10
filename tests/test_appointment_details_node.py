@@ -78,6 +78,18 @@ class AppointmentDetailsNodeTests(unittest.TestCase):
         self.assertEqual(result["starts_at"], starts_at)
         self.assertEqual(result["next_action"], "check_availability")
 
+    def test_reschedule_preserves_the_existing_appointment_service(self):
+        starts_at = datetime(2026, 9, 20, 10, 0, tzinfo=timezone.utc)
+
+        result = self.extract(
+            AppointmentDetails(service_name="Tinte", starts_at=starts_at),
+            appointment_intent="reschedule_appointment",
+            service_name="Corte de cabello",
+        )
+
+        self.assertEqual(result["service_name"], "Corte de cabello")
+        self.assertEqual(result["starts_at"], starts_at)
+
     def test_naive_extracted_start_uses_supplied_local_timezone(self):
         captured = {}
 

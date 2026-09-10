@@ -59,13 +59,13 @@ class FakeClient:
     async def __aexit__(self, exc_type, exc, traceback):
         return False
 
-    async def get(self, url):
+    async def get(self, url, **kwargs):
         return self.response
 
     async def post(self, url, json):
         return self.response
 
-    async def patch(self, url, json):
+    async def put(self, url, **kwargs):
         return self.response
 
 
@@ -215,8 +215,10 @@ class ValidatedCustomerHandoffTests(unittest.IsolatedAsyncioTestCase):
         from src.graph.appointment_booking_graph import route_after_user_services
         from src.models.appointment_details import AppointmentDetails
 
-        FakeClient.response = JsonResponse({"id": "customer-1", "email": "ana@example.com"})
         for intent in APPOINTMENT_CASES.values():
+            FakeClient.response = JsonResponse(
+                {"id": "customer-1", "email": "ana@example.com"}
+            )
             with self.subTest(intent=intent), patch(
                 "src.nodes.user_services_validation.customer_lookup_node.httpx.AsyncClient",
                 FakeClient,
@@ -239,9 +241,33 @@ class ValidatedCustomerHandoffTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(final["pending_question"], "appointment_details")
                 self.assertEqual(final["appointment_intent"], intent)
             else:
-                final = await appointment_services_subgraph.ainvoke(result)
-                self.assertIn("pendiente", final["messages"][-1].content)
-                self.assertIsNone(final["appointment_intent"])
+                FakeClient.response = JsonResponse(
+                    {
+                        "appointment_id": "appointment-1",
+                        "starts_at": "2026-09-18T10:00:00-06:00",
+                        "service_name": "Corte de cabello",
+                        "staff_name": "Ana García",
+                    }
+                )
+                with patch(
+                    "src.nodes.appointment_services.appointment_action_nodes.httpx.AsyncClient",
+                    FakeClient,
+                ), patch(
+                    "src.nodes.appointment_services.appointment_details_node.appointment_details_agent",
+                    return_value=SimpleNamespace(
+                        invoke=lambda inputs: AppointmentDetails()
+                    ),
+                ):
+                    final = await appointment_services_subgraph.ainvoke(result)
+                if intent == "reschedule_appointment":
+                    self.assertEqual(final["pending_question"], "appointment_details")
+                    self.assertEqual(final["appointment_intent"], intent)
+                elif intent == "cancel_appointment":
+                    self.assertEqual(final["pending_question"], "cancel_confirmation")
+                    self.assertEqual(final["appointment_intent"], intent)
+                else:
+                    self.assertIn("próxima cita", final["messages"][-1].content)
+                    self.assertIsNone(final["appointment_intent"])
 
     async def test_intent_survives_creation_confirmation_and_details(self):
         from src.graph.user_services_validation_subgraph import user_services_subgraph
@@ -444,9 +470,96 @@ class AppointmentIntentTests(unittest.TestCase):
 
 
 class AppointmentExplicitGraphTests(unittest.TestCase):
-    def test_actions_are_terminal_and_do_not_consume_apis(self):
+    def test_existing_appointment_intents_route_through_lookup(self):
+        from src.nodes.appointment_services.appointment_validation_node import (
+            appointment_validation_node,
+        )
+
+        for intent in ("reschedule_appointment", "cancel_appointment"):
+            with self.subTest(intent=intent):
+                result = appointment_validation_node(
+                    {
+                        "message_category": intent,
+                        "appointment_intent": intent,
+                        "current_flow": "appointment_services",
+                    }
+                )
+                self.assertEqual(result["next_action"], "lookup_appointment")
+
+    def test_confirmations_route_to_the_matching_mutation(self):
+        from src.nodes.appointment_services.appointment_validation_node import (
+            appointment_validation_node,
+        )
+
+        collect_reschedule_details = appointment_validation_node(
+            {
+                "message_category": "reschedule_appointment",
+                "appointment_intent": "reschedule_appointment",
+                "current_flow": "appointment_services",
+                "active_appointment": {"id": "appointment-1"},
+            }
+        )
+        cancel = appointment_validation_node(
+            {
+                "message_category": "confirmation",
+                "appointment_intent": "cancel_appointment",
+                "current_flow": "appointment_services",
+                "active_appointment": {"id": "appointment-1"},
+                "pending_question": "cancel_confirmation",
+            }
+        )
+        reschedule = appointment_validation_node(
+            {
+                "message_category": "confirmation",
+                "appointment_intent": "reschedule_appointment",
+                "current_flow": "appointment_services",
+                "active_appointment": {"id": "appointment-1"},
+                "pending_question": "reschedule_confirmation",
+                "service_id": "service-1",
+                "business_staff_id": "staff-1",
+                "starts_at": datetime.fromisoformat("2026-09-20T10:00:00-06:00"),
+                "ends_at": datetime.fromisoformat("2026-09-20T11:00:00-06:00"),
+            }
+        )
+
+        self.assertEqual(
+            collect_reschedule_details["next_action"],
+            "collect_appointment_details",
+        )
+        self.assertEqual(cancel["next_action"], "cancel_appointment")
+        self.assertEqual(reschedule["next_action"], "reschedule_appointment")
+        self.assertEqual(cancel["pending_question"], "cancel_confirmation")
+        self.assertEqual(reschedule["pending_question"], "reschedule_confirmation")
+
+    def test_subgraph_exposes_lookup_transition(self):
+        from src.graph.appointment_services_subgraph import AppointmentServicesSubgraph
+
+        graph = AppointmentServicesSubgraph().graph.get_graph()
+
+        self.assertIn("lookup_appointment", graph.nodes)
+        self.assertIn(
+            ("appointment_validation", "lookup_appointment"),
+            {(edge.source, edge.target) for edge in graph.edges},
+        )
+
+    def test_lookup_continues_only_reschedule_detail_collection(self):
+        from src.graph.appointment_services_subgraph import (
+            route_after_appointment_lookup,
+        )
+
+        self.assertEqual(
+            route_after_appointment_lookup(
+                {"next_action": "collect_appointment_details"}
+            ),
+            "collect_appointment_details",
+        )
+        self.assertEqual(
+            route_after_appointment_lookup({"next_action": "cancel_appointment"}),
+            "end",
+        )
+
+    def test_actions_are_terminal(self):
         from src.graph.appointment_services_subgraph import appointment_services_subgraph
-        from src.graph.appointment_booking_graph import route_after_message_writer
         graph = appointment_services_subgraph.get_graph()
         edges = {(e.source, e.target) for e in graph.edges}
         self.assertNotIn("tools", graph.nodes)
@@ -454,39 +567,6 @@ class AppointmentExplicitGraphTests(unittest.TestCase):
         self.assertIn("appointment_validation", graph.nodes)
         for action in APPOINTMENT_CASES.values():
             self.assertIn((action, "__end__"), edges)
-        for category, action in APPOINTMENT_CASES.items():
-            if action in {"book_appointment", "check_availability"}:
-                continue
-            with self.subTest(action=action), patch(
-                "httpx.AsyncClient", side_effect=AssertionError("Unexpected HTTP")
-            ), patch(
-                "langchain_openrouter.ChatOpenRouter",
-                side_effect=AssertionError("Unexpected appointment LLM"),
-            ):
-                result = appointment_services_subgraph.invoke({
-                    "messages": [HumanMessage(content="Solicitud")],
-                    "message_category": category,
-                    "business_id": str(uuid4()), "customer_id": "customer-1",
-                    "current_flow": "appointment_services",
-                    "confirmed_slot": {"starts_at": "stale"},
-                    "active_appointment": {"id": "stale"},
-                })
-                self.assertIsInstance(result["messages"][-1], AIMessage)
-                self.assertIn("pendiente", result["messages"][-1].content)
-                expected_phrase = {
-                    "book_appointment": "agendar citas",
-                    "check_availability": "consultar horarios",
-                    "reschedule_appointment": "reprogramar citas",
-                    "cancel_appointment": "cancelar citas",
-                    "view_appointment": "consultar tus citas",
-                }[action]
-                self.assertIn(expected_phrase, result["messages"][-1].content)
-                self.assertEqual(result["customer_id"], "customer-1")
-                for field in ("appointment_intent", "current_flow", "next_action",
-                              "pending_question", "confirmed_slot", "active_appointment"):
-                    self.assertIsNone(result[field])
-                self.assertIsNone(result["appointment_outcome"])
-                self.assertEqual(route_after_message_writer(result), "end")
 
     def test_validation_rejects_stale_intent_and_contextless_confirmation(self):
         from src.nodes.appointment_services.appointment_validation_node import (
@@ -760,7 +840,94 @@ class AppointmentExplicitGraphTests(unittest.TestCase):
         self.assertEqual(result["next_action"], "collect_appointment_details")
 
 
-class AppointmentExpandedRoutingTests(unittest.TestCase):
+class AppointmentExpandedRoutingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_reschedule_lookup_availability_and_confirmation_flow(self):
+        from src.graph.appointment_services_subgraph import appointment_services_subgraph
+        from src.models.appointment_details import AppointmentDetails
+
+        existing = JsonResponse(
+            {
+                "appointment_id": "appointment-1",
+                "starts_at": "2026-09-18T10:00:00-06:00",
+                "service_name": "Corte de cabello",
+                "staff_name": "Ana García",
+            }
+        )
+        available = JsonResponse(
+            {
+                "available": True,
+                "service_id": "service-1",
+                "business_staff_id": "staff-1",
+                "ends_at": "2026-09-20T11:00:00-06:00",
+            }
+        )
+        updated = JsonResponse({"id": "appointment-1"})
+        client = FakeClient()
+        responses = iter((existing, available))
+
+        async def get(url, **kwargs):
+            return next(responses)
+
+        client.get = get
+        client.put = unittest.mock.AsyncMock(return_value=updated)
+        client_context = unittest.mock.MagicMock()
+        client_context.return_value.__aenter__ = unittest.mock.AsyncMock(
+            return_value=client
+        )
+        client_context.return_value.__aexit__ = unittest.mock.AsyncMock(
+            return_value=False
+        )
+        starts_at = datetime.fromisoformat("2026-09-20T10:00:00-06:00")
+        incoming = HumanMessage(content="Mueve mi cita al 20 de septiembre a las 10")
+
+        with patch(
+            "src.nodes.appointment_services.appointment_action_nodes.httpx.AsyncClient",
+            client_context,
+        ), patch(
+            "src.nodes.appointment_services.appointment_action_nodes.API_URL",
+            "https://api.example.test",
+        ), patch(
+            "src.nodes.appointment_services.appointment_details_node.appointment_details_agent",
+            return_value=SimpleNamespace(
+                invoke=lambda inputs: AppointmentDetails(starts_at=starts_at)
+            ),
+        ):
+            pending = await appointment_services_subgraph.ainvoke(
+                {
+                    "messages": [incoming],
+                    "current_message": incoming,
+                    "message_category": "reschedule_appointment",
+                    "business_id": "business-1",
+                    "customer_id": "customer-1",
+                    "current_flow": "appointment_services",
+                }
+            )
+            confirmation = HumanMessage(content="Sí, reprograma la cita")
+            result = await appointment_services_subgraph.ainvoke(
+                {
+                    **pending,
+                    "messages": [*pending["messages"], confirmation],
+                    "current_message": confirmation,
+                    "message_category": "confirmation",
+                }
+            )
+
+        self.assertEqual(pending["pending_question"], "reschedule_confirmation")
+        self.assertEqual(pending["active_appointment"]["id"], "appointment-1")
+        self.assertIn("reprogramada", result["messages"][-1].content)
+        self.assertIsNone(result["active_appointment"])
+        client.put.assert_awaited_once_with(
+            "https://api.example.test/appointments/reschedule",
+            params={
+                "business_id": "business-1",
+                "appointment_id": "appointment-1",
+            },
+            json={
+                "starts_at": "2026-09-20T10:00:00-06:00",
+                "ends_at": "2026-09-20T11:00:00-06:00",
+            },
+        )
+
     def test_action_switch_does_not_answer_customer_questions(self):
         from src.nodes.user_services_validation.user_validation_node import user_validations_node
 
@@ -804,18 +971,30 @@ class AppointmentExpandedRoutingTests(unittest.TestCase):
             "next_action": "retry_customer_lookup",
         }), "user_services")
 
-    def test_pending_response_reaches_writer_unchanged(self):
+    async def test_cancel_confirmation_reaches_writer_unchanged(self):
         from src.graph.appointment_services_subgraph import appointment_services_subgraph
-        result = appointment_services_subgraph.invoke({
-            "messages": [HumanMessage(content="Cancela mi cita")],
-            "message_category": "cancel_appointment",
-            "business_id": str(uuid4()), "customer_id": "customer-1",
-        })
+        FakeClient.response = JsonResponse(
+            {
+                "appointment_id": "appointment-1",
+                "starts_at": "2026-09-18T10:00:00-06:00",
+                "service_name": "Corte de cabello",
+                "staff_name": "Ana García",
+            }
+        )
+        with patch(
+            "src.nodes.appointment_services.appointment_action_nodes.httpx.AsyncClient",
+            FakeClient,
+        ):
+            result = await appointment_services_subgraph.ainvoke({
+                "messages": [HumanMessage(content="Cancela mi cita")],
+                "message_category": "cancel_appointment",
+                "business_id": str(uuid4()), "customer_id": "customer-1",
+            })
         with patch("src.nodes.message_writer_node.message_writer") as model:
             written = message_writer_node(result)
         model.assert_not_called()
-        self.assertEqual(written["message_response"],
-            "La integración para cancelar citas está pendiente. No he cancelado ninguna cita.")
+        self.assertIn("cancelar", written["message_response"].lower())
+        self.assertEqual(result["pending_question"], "cancel_confirmation")
         self.assertNotIn("messages", written)
 
 class AppointmentContinuityRoutingTests(unittest.TestCase):
@@ -991,6 +1170,53 @@ class AppointmentResponseHandoffTests(unittest.TestCase):
 
 
 class AppointmentToolLifecycleTests(unittest.IsolatedAsyncioTestCase):
+    async def test_reschedule_tool_uses_put_contract(self):
+        start = datetime.fromisoformat("2026-08-29T11:00:00-06:00")
+        response = unittest.mock.Mock()
+        response.json.return_value = {"id": "appointment-1"}
+        client = unittest.mock.AsyncMock()
+        client.put.return_value = response
+        client_class = unittest.mock.MagicMock()
+        client_class.return_value.__aenter__ = unittest.mock.AsyncMock(
+            return_value=client
+        )
+        client_class.return_value.__aexit__ = unittest.mock.AsyncMock(
+            return_value=False
+        )
+        state = {
+            "business_id": "business-1",
+            "active_appointment": {"id": "appointment-1"},
+            "confirmed_slot": {"starts_at": start.isoformat()},
+        }
+
+        with patch(
+            "src.nodes.tools.services.services_tools.httpx.AsyncClient",
+            client_class,
+        ), patch(
+            "src.nodes.tools.services.services_tools.API_URL",
+            "https://api.example.test",
+        ):
+            await reschedule_appointment.coroutine(
+                AppointmentInput(
+                    starts_at=start,
+                    ends_at=start + timedelta(hours=1),
+                ),
+                "tool-reschedule",
+                state,
+            )
+
+        client.put.assert_awaited_once_with(
+            "https://api.example.test/appointments/reschedule",
+            params={
+                "business_id": "business-1",
+                "appointment_id": "appointment-1",
+            },
+            json={
+                "starts_at": "2026-08-29T11:00:00-06:00",
+                "ends_at": "2026-08-29T12:00:00-06:00",
+            },
+        )
+
     async def test_create_callers_return_error_when_required_ids_are_missing(self):
         start = datetime.fromisoformat("2026-08-28T10:00:00")
         appointment = AppointmentInput(
