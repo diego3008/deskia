@@ -125,7 +125,7 @@ async def find_customer(
                     ToolMessage(
                         content=f"Found existing customer: {found}",
                         tool_call_id=tool_call_id,
-                    )
+                    ),
                 ],
                 "customer_id": found.get("id"),
             }
