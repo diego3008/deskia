@@ -79,13 +79,15 @@ async def create_appointment(
         )
     business_id = state["business_id"]
     customer_id = state.get("customer_id") or (state.get("customer") or {}).get("id")
-    full_appointment = AppointmentCreate(
-        business_id=business_id,
-        starts_at=appointment.starts_at,
-        ends_at=appointment.ends_at,
-        customer_id=customer_id,
-    )
     try:
+        full_appointment = AppointmentCreate(
+            business_id=business_id,
+            starts_at=appointment.starts_at,
+            ends_at=appointment.ends_at,
+            customer_id=customer_id,
+            service_id=state.get("service_id"),
+            business_staff_id=state.get("business_staff_id"),
+        )
         url = f"{API_URL}/appointments/book"
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(url, json=full_appointment.model_dump(mode="json"))

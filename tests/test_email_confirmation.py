@@ -46,7 +46,7 @@ class OutcomeTests(unittest.TestCase):
         self.assertEqual(cancelled.appointment_id, "appointment-1")
 
 
-class NotificationStateTests(unittest.TestCase):
+class NotificationStateTests(unittest.IsolatedAsyncioTestCase):
     def test_listener_clears_transient_email_state_and_preserves_receipts(self):
         from src.nodes.message_listener_node import message_listener_node
 
@@ -68,14 +68,17 @@ class NotificationStateTests(unittest.TestCase):
                 self.assertIsNone(merged["email_confirmation"])
                 self.assertEqual(merged["email_receipts"], receipt)
 
-    def test_pending_action_clears_a_stale_appointment_outcome(self):
+    async def test_incomplete_booking_preserves_a_stale_appointment_outcome(self):
         from src.nodes.appointment_services.appointment_action_nodes import (
             book_appointment_node,
         )
 
-        result = book_appointment_node({"appointment_outcome": SUCCESS})
+        state = {"appointment_outcome": SUCCESS}
+        result = await book_appointment_node(state)
+        merged = {**state, **result}
 
-        self.assertIsNone(result["appointment_outcome"])
+        self.assertEqual(merged["appointment_outcome"], SUCCESS)
+        self.assertNotIn("appointment_outcome", result)
 
 
 class EmailCompositionTests(unittest.TestCase):

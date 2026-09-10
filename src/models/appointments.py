@@ -26,6 +26,13 @@ class AppointmentCreate(BaseModel):
     customer_id: UUID = Field(
         description="The UUID of the customer for whom the appointment is being created."
     )
+    business_staff_id: UUID = Field(
+        description="The UUID of the staff member that will provide the service to the customer."
+    )
+    service_id: UUID = Field(
+        description="The UUID of the service requested by the customer."
+    )
+
 
 class AppointmentInput(BaseModel):
     starts_at: datetime = Field(

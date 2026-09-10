@@ -1,22 +1,28 @@
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from typing import get_type_hints
 from unittest.mock import patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from langchain_core.messages import AIMessage, HumanMessage
 
 from src.models.appointments import AppointmentInput
+from src.helpers.workflow import clear_appointment_state
 from src.nodes.message_categorizer_node import message_categorizer_node
 from src.nodes.message_writer_node import message_writer_node
 from src.nodes.tools.services.services_tools import (
     create_appointment,
     reschedule_appointment,
 )
+from src.nodes.tools.messages_tools import (
+    create_appointment as create_message_appointment,
+)
 from src.nodes.user_services_validation.customer_creation_node import (
     customer_creation_node,
 )
 from src.nodes.user_services_validation.customer_lookup_node import customer_lookup_node
+from src.state import MessageGraphState
 
 
 APPOINTMENT_CASES = {
@@ -61,6 +67,26 @@ class FakeClient:
 
     async def patch(self, url, json):
         return self.response
+
+
+class AppointmentStateContractTests(unittest.TestCase):
+    def test_clear_appointment_state_clears_appointment_details(self):
+        annotations = get_type_hints(MessageGraphState)
+        self.assertEqual(annotations["starts_at"], datetime | None)
+        self.assertEqual(annotations["ends_at"], datetime | None)
+        self.assertEqual(annotations["service_name"], str | None)
+        self.assertEqual(annotations["service_id"], UUID | str | None)
+        self.assertEqual(annotations["business_staff_id"], UUID | str | None)
+
+        cleared = clear_appointment_state()
+        for field in (
+            "starts_at",
+            "ends_at",
+            "service_name",
+            "service_id",
+            "business_staff_id",
+        ):
+            self.assertIsNone(cleared[field])
 
 
 class ValidatedCustomerHandoffTests(unittest.IsolatedAsyncioTestCase):
@@ -187,6 +213,8 @@ class ValidatedCustomerHandoffTests(unittest.IsolatedAsyncioTestCase):
         from src.graph.user_services_validation_subgraph import user_services_subgraph
         from src.graph.appointment_services_subgraph import appointment_services_subgraph
         from src.graph.appointment_booking_graph import route_after_user_services
+        from src.models.appointment_details import AppointmentDetails
+
         FakeClient.response = JsonResponse({"id": "customer-1", "email": "ana@example.com"})
         for intent in APPOINTMENT_CASES.values():
             with self.subTest(intent=intent), patch(
@@ -201,9 +229,19 @@ class ValidatedCustomerHandoffTests(unittest.IsolatedAsyncioTestCase):
                 })
             self.assertEqual(result["appointment_intent"], intent)
             self.assertEqual(route_after_user_services(result), "appointment_services")
-            final = await appointment_services_subgraph.ainvoke(result)
-            self.assertIn("pendiente", final["messages"][-1].content)
-            self.assertIsNone(final["appointment_intent"])
+            if intent in {"book_appointment", "check_availability"}:
+                agent = SimpleNamespace(invoke=lambda inputs: AppointmentDetails())
+                with patch(
+                    "src.nodes.appointment_services.appointment_details_node.appointment_details_agent",
+                    return_value=agent,
+                ):
+                    final = await appointment_services_subgraph.ainvoke(result)
+                self.assertEqual(final["pending_question"], "appointment_details")
+                self.assertEqual(final["appointment_intent"], intent)
+            else:
+                final = await appointment_services_subgraph.ainvoke(result)
+                self.assertIn("pendiente", final["messages"][-1].content)
+                self.assertIsNone(final["appointment_intent"])
 
     async def test_intent_survives_creation_confirmation_and_details(self):
         from src.graph.user_services_validation_subgraph import user_services_subgraph
@@ -279,7 +317,7 @@ class CustomerValidationHandoffRegressionTests(unittest.IsolatedAsyncioTestCase)
 
 class AppointmentIntentTests(unittest.TestCase):
     def categorize(self, category, **state):
-        message = HumanMessage(content="Solicitud de prueba")
+        message = HumanMessage(content=state.pop("message", "Solicitud de prueba"))
         agent = SimpleNamespace(invoke=lambda inputs: SimpleNamespace(
             category=SimpleNamespace(value=category)))
         with patch(
@@ -334,6 +372,76 @@ class AppointmentIntentTests(unittest.TestCase):
         self.assertIsNone(result["next_action"])
         self.assertIsNone(result["confirmed_slot"])
 
+    def test_pending_details_preserve_intent_and_collected_values(self):
+        starts_at = datetime(2026, 9, 10, 10, 0)
+        for category in ("service_request", "confirmation"):
+            with self.subTest(category=category):
+                result = self.categorize(
+                    category,
+                    appointment_intent="book_appointment",
+                    current_flow="appointment_services",
+                    pending_question="appointment_details",
+                    next_action="collect_appointment_details",
+                    service_name="Corte de cabello",
+                    starts_at=starts_at,
+                )
+
+                self.assertEqual(result["appointment_intent"], "book_appointment")
+                self.assertEqual(result["current_flow"], "appointment_services")
+                self.assertEqual(result["pending_question"], "appointment_details")
+                self.assertEqual(result["next_action"], "collect_appointment_details")
+                self.assertEqual(result["service_name"], "Corte de cabello")
+                self.assertEqual(result["starts_at"], starts_at)
+
+    def test_affirmative_booking_reply_is_confirmation_when_classifier_mislabels_it(self):
+        result = self.categorize(
+            "new_appointment",
+            message="Sí, resérvala",
+            appointment_intent="book_appointment",
+            current_flow="appointment_services",
+            pending_question="booking_confirmation",
+            next_action="confirm_booking",
+            service_id="service-1",
+            business_staff_id="staff-1",
+            starts_at=datetime.fromisoformat("2026-09-10T10:00:00-06:00"),
+            ends_at=datetime.fromisoformat("2026-09-10T11:00:00-06:00"),
+        )
+
+        self.assertEqual(result["message_category"], "confirmation")
+        self.assertEqual(result["appointment_intent"], "book_appointment")
+        self.assertEqual(result["pending_question"], "booking_confirmation")
+
+    def test_explicit_booking_request_uses_the_available_slot_without_asking_again(self):
+        from src.nodes.appointment_services.appointment_validation_node import (
+            appointment_validation_node,
+        )
+
+        starts_at = datetime.fromisoformat("2026-09-21T09:00:00-06:00")
+        ends_at = datetime.fromisoformat("2026-09-21T10:00:00-06:00")
+        result = self.categorize(
+            "new_appointment",
+            message="Okay, podrías agendarme ese día y esa hora por favor?",
+            appointment_intent="check_availability",
+            current_flow="appointment_services",
+            next_action="check_availability",
+            service_id="service-1",
+            business_staff_id="staff-1",
+            service_name="Limpieza dental",
+            starts_at=starts_at,
+            ends_at=ends_at,
+        )
+
+        self.assertEqual(result["message_category"], "confirmation")
+        self.assertEqual(result["appointment_intent"], "book_appointment")
+        self.assertEqual(result["service_id"], "service-1")
+        self.assertEqual(result["business_staff_id"], "staff-1")
+        self.assertEqual(result["starts_at"], starts_at)
+        self.assertEqual(result["ends_at"], ends_at)
+        self.assertEqual(
+            appointment_validation_node(result)["next_action"],
+            "book_appointment",
+        )
+
 
 class AppointmentExplicitGraphTests(unittest.TestCase):
     def test_actions_are_terminal_and_do_not_consume_apis(self):
@@ -344,14 +452,17 @@ class AppointmentExplicitGraphTests(unittest.TestCase):
         self.assertNotIn("tools", graph.nodes)
         self.assertNotIn("appointment_agent", graph.nodes)
         self.assertIn("appointment_validation", graph.nodes)
+        for action in APPOINTMENT_CASES.values():
+            self.assertIn((action, "__end__"), edges)
         for category, action in APPOINTMENT_CASES.items():
+            if action in {"book_appointment", "check_availability"}:
+                continue
             with self.subTest(action=action), patch(
                 "httpx.AsyncClient", side_effect=AssertionError("Unexpected HTTP")
             ), patch(
                 "langchain_openrouter.ChatOpenRouter",
                 side_effect=AssertionError("Unexpected appointment LLM"),
             ):
-                self.assertIn((action, "__end__"), edges)
                 result = appointment_services_subgraph.invoke({
                     "messages": [HumanMessage(content="Solicitud")],
                     "message_category": category,
@@ -421,6 +532,232 @@ class AppointmentExplicitGraphTests(unittest.TestCase):
             })
             self.assertIsNone(result["current_flow"])
             self.assertIn("validar", result["messages"][-1].content)
+
+    def test_complete_details_reach_availability_with_validated_state(self):
+        from src.graph import appointment_services_subgraph as graph_module
+        from src.models.appointment_details import AppointmentDetails
+
+        local_timezone = timezone(timedelta(hours=-6))
+        starts_at = datetime(2026, 9, 10, 10, 0, tzinfo=local_timezone)
+        ends_at = datetime(2026, 9, 10, 11, 0, tzinfo=local_timezone)
+
+        def reached_availability(state):
+            self.assertEqual(state["service_name"], "Masaje")
+            self.assertEqual(state["starts_at"], starts_at)
+            return {
+                "service_id": "availability-reached",
+                "business_staff_id": "staff-1",
+                "ends_at": ends_at,
+                "messages": [AIMessage(content="Disponibilidad consultada")],
+            }
+
+        with patch.dict(
+            graph_module.NODES,
+            {"check_availability": reached_availability},
+        ):
+            graph = graph_module.AppointmentServicesSubgraph().graph
+
+        base = {
+            "messages": [HumanMessage(content="Quiero agendar")],
+            "current_message": HumanMessage(content="Quiero agendar"),
+            "message_category": "new_appointment",
+            "business_id": str(uuid4()),
+            "customer_id": "customer-1",
+            "current_flow": "appointment_services",
+        }
+        agent = SimpleNamespace(
+            invoke=lambda inputs: AppointmentDetails(
+                service_name="Masaje", starts_at=starts_at
+            )
+        )
+        with patch(
+            "src.nodes.appointment_services.appointment_details_node.appointment_details_agent",
+            return_value=agent,
+        ):
+            result = graph.invoke(base)
+
+        self.assertEqual(result["service_id"], "availability-reached")
+        self.assertEqual(result["service_name"], "Masaje")
+        self.assertEqual(result["starts_at"], starts_at)
+        self.assertEqual(result["ends_at"], ends_at)
+
+    def test_missing_detail_is_preserved_and_followup_reaches_availability_once(self):
+        from src.graph import appointment_services_subgraph as graph_module
+        from src.models.appointment_details import AppointmentDetails
+
+        local_timezone = timezone(timedelta(hours=-6))
+        starts_at = datetime(2026, 9, 10, 10, 0, tzinfo=local_timezone)
+        ends_at = datetime(2026, 9, 10, 11, 0, tzinfo=local_timezone)
+        availability_inputs = []
+
+        def reached_availability(state):
+            availability_inputs.append(
+                (state.get("service_name"), state.get("starts_at"))
+            )
+            return {
+                "service_id": "availability-reached",
+                "business_staff_id": "staff-1",
+                "ends_at": ends_at,
+                "messages": [AIMessage(content="Disponibilidad consultada")],
+            }
+
+        with patch.dict(
+            graph_module.NODES,
+            {"check_availability": reached_availability},
+        ):
+            graph = graph_module.AppointmentServicesSubgraph().graph
+
+        first_message = HumanMessage(content="Quiero un masaje")
+        base = {
+            "messages": [first_message],
+            "current_message": first_message,
+            "message_category": "new_appointment",
+            "business_id": str(uuid4()),
+            "customer_id": "customer-1",
+            "current_flow": "appointment_services",
+        }
+        agent = SimpleNamespace(
+            invoke=lambda inputs: AppointmentDetails(service_name="Masaje")
+        )
+        with patch(
+            "src.nodes.appointment_services.appointment_details_node.appointment_details_agent",
+            return_value=agent,
+        ):
+            incomplete = graph.invoke(base)
+
+        self.assertEqual(incomplete["pending_question"], "appointment_details")
+        self.assertEqual(incomplete["next_action"], "collect_appointment_details")
+        self.assertEqual(incomplete["service_name"], "Masaje")
+        self.assertIn("fecha y hora", incomplete["messages"][-1].content.lower())
+        self.assertIsNone(incomplete.get("service_id"))
+        self.assertEqual(availability_inputs, [])
+
+        followup = HumanMessage(content="Mañana a las 10")
+        agent = SimpleNamespace(
+            invoke=lambda inputs: AppointmentDetails(starts_at=starts_at)
+        )
+        with patch(
+            "src.nodes.appointment_services.appointment_details_node.appointment_details_agent",
+            return_value=agent,
+        ):
+            complete = graph.invoke(
+                {
+                    **incomplete,
+                    "messages": [*incomplete["messages"], followup],
+                    "current_message": followup,
+                    "message_category": "confirmation",
+                }
+            )
+
+        self.assertEqual(availability_inputs, [("Masaje", starts_at)])
+        self.assertEqual(complete["service_id"], "availability-reached")
+        self.assertEqual(complete["service_name"], "Masaje")
+        self.assertEqual(complete["starts_at"], starts_at)
+        self.assertEqual(complete["ends_at"], ends_at)
+        self.assertEqual(complete["next_action"], "check_availability")
+
+    def test_availability_confirmation_books_exactly_once(self):
+        from src.graph import appointment_services_subgraph as graph_module
+        from src.models.appointment_details import AppointmentDetails
+
+        starts_at = datetime.fromisoformat("2026-09-10T10:00:00-06:00")
+        ends_at = datetime.fromisoformat("2026-09-10T11:00:00-06:00")
+        availability_calls = []
+        booking_calls = []
+
+        def check_availability(state):
+            availability_calls.append(state)
+            return {
+                "service_id": "service-1",
+                "business_staff_id": "staff-1",
+                "ends_at": ends_at,
+                "pending_question": "booking_confirmation",
+                "next_action": "confirm_booking",
+                "messages": [AIMessage(content="El horario está disponible")],
+            }
+
+        def book_appointment(state):
+            booking_calls.append(state)
+            return {
+                **clear_appointment_state(),
+                "messages": [AIMessage(content="Tu cita quedó agendada")],
+            }
+
+        with patch.dict(
+            graph_module.NODES,
+            {
+                "check_availability": check_availability,
+                "book_appointment": book_appointment,
+            },
+        ):
+            graph = graph_module.AppointmentServicesSubgraph().graph
+
+        incoming = HumanMessage(content="Quiero un masaje mañana a las 10")
+        agent = SimpleNamespace(
+            invoke=lambda inputs: AppointmentDetails(
+                service_name="Masaje", starts_at=starts_at
+            )
+        )
+        with patch(
+            "src.nodes.appointment_services.appointment_details_node.appointment_details_agent",
+            return_value=agent,
+        ):
+            available = graph.invoke(
+                {
+                    "messages": [incoming],
+                    "current_message": incoming,
+                    "message_category": "new_appointment",
+                    "business_id": str(uuid4()),
+                    "customer_id": str(uuid4()),
+                    "current_flow": "appointment_services",
+                }
+            )
+
+        self.assertEqual(available["appointment_intent"], "book_appointment")
+        self.assertEqual(available["next_action"], "confirm_booking")
+        self.assertEqual(available["pending_question"], "booking_confirmation")
+        confirmation = HumanMessage(content="Sí, reserva ese horario")
+        with patch(
+            "src.nodes.message_categorizer_node.message_categorizer_agent"
+        ) as categorizer:
+            categorizer.return_value.invoke.return_value = SimpleNamespace(
+                category=SimpleNamespace(value="new_appointment")
+            )
+            categorized = message_categorizer_node(
+                {
+                    **available,
+                    "messages": [*available["messages"], confirmation],
+                    "current_message": confirmation,
+                }
+            )
+        booked = graph.invoke(categorized)
+
+        self.assertEqual(len(availability_calls), 1)
+        self.assertEqual(len(booking_calls), 1)
+        self.assertEqual(booking_calls[0]["service_id"], "service-1")
+        self.assertEqual(booking_calls[0]["business_staff_id"], "staff-1")
+        self.assertEqual(booking_calls[0]["starts_at"], starts_at)
+        self.assertEqual(booking_calls[0]["ends_at"], ends_at)
+        self.assertIn("agendada", booked["messages"][-1].content)
+
+    def test_confirmation_for_check_only_intent_does_not_book(self):
+        from src.nodes.appointment_services.appointment_validation_node import (
+            appointment_validation_node,
+        )
+
+        result = appointment_validation_node(
+            {
+                "message_category": "confirmation",
+                "appointment_intent": "check_availability",
+                "current_flow": "appointment_services",
+                "service_id": "service-1",
+                "business_staff_id": "staff-1",
+                "starts_at": datetime.fromisoformat("2026-09-10T10:00:00-06:00"),
+                "ends_at": datetime.fromisoformat("2026-09-10T11:00:00-06:00"),
+            }
+        )
+
+        self.assertEqual(result["next_action"], "collect_appointment_details")
 
 
 class AppointmentExpandedRoutingTests(unittest.TestCase):
@@ -654,12 +991,41 @@ class AppointmentResponseHandoffTests(unittest.TestCase):
 
 
 class AppointmentToolLifecycleTests(unittest.IsolatedAsyncioTestCase):
+    async def test_create_callers_return_error_when_required_ids_are_missing(self):
+        start = datetime.fromisoformat("2026-08-28T10:00:00")
+        appointment = AppointmentInput(
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+        )
+        state = {
+            "business_id": uuid4(),
+            "customer_id": str(uuid4()),
+            "customer": {"id": str(uuid4())},
+            "confirmed_slot": {"starts_at": start.isoformat()},
+        }
+
+        services_result = await create_appointment.coroutine(
+            appointment,
+            "tool-create",
+            state,
+        )
+        messages_result = await create_message_appointment.coroutine(
+            appointment,
+            state,
+        )
+
+        for result in (services_result, messages_result):
+            self.assertIsInstance(result, str)
+            self.assertIn("error creating appointment", result)
+
     async def test_create_completion_clears_flow(self):
         start = datetime.fromisoformat("2026-08-28T10:00:00")
         FakeClient.response = JsonResponse({"id": str(uuid4())})
         state = {
             "business_id": uuid4(),
             "customer_id": str(uuid4()),
+            "service_id": uuid4(),
+            "business_staff_id": uuid4(),
             "current_flow": "appointment_services",
             "next_action": "collect_appointment_details",
             "confirmed_slot": {"starts_at": start.isoformat()},

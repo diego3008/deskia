@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Annotated, List, Optional, TypedDict
 from typing_extensions import Literal
 from uuid import UUID
@@ -57,6 +58,10 @@ class MessageGraphState(TypedDict):
     customer_id: UUID | str | None
     active_appointment: dict | None
     confirmed_slot: dict | None
+    starts_at: datetime | None
+    ends_at: datetime | None
+    service_name: str | None
+    service_id: UUID | str | None
     pending_question: str | None
     customer_status: str | None
     appointment_outcome: dict | None
@@ -66,3 +71,4 @@ class MessageGraphState(TypedDict):
     user_data: dict = {}
     retrieved_services: str | None
     conversation_summary: str | None
+    business_staff_id: UUID | str | None
