@@ -221,12 +221,14 @@ The code expects `DESKIA_API_URL` and the following backend behavior:
 
 | Operation | Request | Required response behavior |
 |---|---|---|
-| Check availability | `GET /appointments/availability` with `starts_at` and `business_id` | JSON value indicating whether the exact slot is available |
-| Book appointment | `POST /appointments/book` with `business_id`, `customer_id`, `starts_at`, and `ends_at` | Successful status and the created appointment as JSON |
+| Check availability | `GET /appointments/validate-date` with `business_id`, timezone-aware `requested_start_date` (mapped from state `starts_at`), and `service_name` | `{ "available": true, "service_id": "...", "staff_id": "...", "ends_at": "..." }`, or plain `false` |
+| Book appointment | `POST /appointments/book` with `business_id`, `customer_id`, `service_id`, `staff_id`, `starts_at`, and `ends_at` | Successful status and appointment timing as JSON |
 | Find customer appointment | `GET /appointments/find_customer_appointment` with `customer_id`, `business_id`, and optional `appointment_date` | One appointment object or an empty value |
 | Reschedule appointment | `PATCH /appointments/{appointment_id}/reschedule` with `business_id`, `starts_at`, and `ends_at` | Successful status and the updated appointment as JSON |
 
 The backend must atomically re-check slot availability during booking and rescheduling. `confirmed_slot` is a conversational guard against incorrect tool order; it cannot prevent another client from taking the same slot between requests.
+
+Availability treats the response `service_id`, `staff_id`, and `ends_at` as authoritative and rejects available responses that omit any of them. It does not infer service duration locally. Booking clears the transient appointment state after a successful response. Email confirmation remains deferred until the API returns operation and appointment identifiers.
 
 The reschedule endpoint, HTTP verb, and payload still need confirmation against the production API contract, as noted in the tool source.
 

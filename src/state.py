@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Annotated, List, Optional, TypedDict
 from typing_extensions import Literal
 from uuid import UUID
@@ -26,9 +27,10 @@ class UserValidationState(TypedDict):
     messages: Annotated[list, add_messages]
     message_category: str
     current_flow: str | None
+    appointment_intent: str | None
     pending_question: str | None
     customer_status: str | None
-    next_action: str
+    next_action: str | None
     user_data: dict
     customer: dict | None
     customer_id: UUID | str | None
@@ -51,12 +53,22 @@ class MessageGraphState(TypedDict):
     business_id: UUID
     customer: dict | None
     current_flow: str | None
-    next_action: str
+    appointment_intent: str | None
+    next_action: str | None
     customer_id: UUID | str | None
     active_appointment: dict | None
     confirmed_slot: dict | None
+    starts_at: datetime | None
+    ends_at: datetime | None
+    service_name: str | None
+    service_id: UUID | str | None
     pending_question: str | None
     customer_status: str | None
+    appointment_outcome: dict | None
+    email_draft: dict | None
+    email_confirmation: dict | None
+    email_receipts: dict[str, dict]
     user_data: dict = {}
     retrieved_services: str | None
     conversation_summary: str | None
+    business_staff_id: UUID | str | None

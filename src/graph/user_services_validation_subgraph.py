@@ -3,6 +3,8 @@ from langgraph.graph import END, START, StateGraph
 
 from src.state import UserValidationState
 from src.nodes.user_services_validation import NODES
+from src.helpers.workflow import customer_validation_pending
+from src.structured_outputs import APPOINTMENT_CATEGORIES
 
 class UserServicesValidation:
 
@@ -41,24 +43,10 @@ class UserServicesValidation:
 
 
 def router_request(state: UserValidationState) -> str:
-    if state.get("next_action") in {
-        "retry_customer_lookup",
-        "retry_customer_creation",
-    }:
+    if customer_validation_pending(state):
         return "user_validation"
 
-    if state.get("pending_question") in {
-        "existing_customer_email",
-        "confirm_create_customer",
-        "new_customer_details",
-    }:
-        return "user_validation"
-
-    if state.get("message_category") in {
-        "new_appointment",
-        "reschedule_appointment",
-        "cancel_appointment",
-    }:
+    if state.get("message_category") in APPOINTMENT_CATEGORIES:
         return "user_validation"
 
     if state.get("message_category") == "service_inquiry":

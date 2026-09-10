@@ -67,13 +67,15 @@ async def create_appointment(
     """
     business_id = state["business_id"]  # read directly from state
     customer_id = state.get("customer", {}).get("id")  # read directly from state
-    full_appointment = AppointmentCreate(
+    try:
+        full_appointment = AppointmentCreate(
             business_id=business_id,
             starts_at=appointment.starts_at,
             ends_at=appointment.ends_at,
-            customer_id=customer_id
+            customer_id=customer_id,
+            service_id=state.get("service_id"),
+            business_staff_id=state.get("business_staff_id"),
         )
-    try:
         url = f"{API_URL}/appointments/book" 
         
 
