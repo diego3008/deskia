@@ -14,6 +14,6 @@ def message_categorizer_agent():
         input_variables=["message", "history"]
     )
 
-    llm = ChatOpenRouter(model="google/gemini-3.7-flash", temperature=0)
+    llm = ChatOpenRouter(model="~openai/gpt-luna-latest", temperature=0)
     
     return message_categorizer_prompt | llm.with_structured_output(CategorizerMessageOutput)

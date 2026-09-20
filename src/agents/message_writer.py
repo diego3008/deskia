@@ -5,7 +5,7 @@ from src.state import OutBoundsMessge
 
 
 def message_writer():
-    llm = ChatOpenRouter(model="google/gemini-3.7-flash", temperature=0)
+    llm = ChatOpenRouter(model="~openai/gpt-luna-latest", temperature=0)
 
     prompt = PromptTemplate(
         template=MESSAGE_WRITER_PROMPT,

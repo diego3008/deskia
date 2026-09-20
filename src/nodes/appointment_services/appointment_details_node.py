@@ -39,7 +39,7 @@ def appointment_details_agent():
             "timezone",
         ],
     )
-    llm = ChatOpenRouter(model="google/gemini-3.7-flash", temperature=0)
+    llm = ChatOpenRouter(model="~openai/gpt-luna-latest", temperature=0)
     return prompt | llm.with_structured_output(AppointmentDetails)
 
 
