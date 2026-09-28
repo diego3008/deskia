@@ -17,7 +17,7 @@ from tzlocal import get_localzone
 LOCAL_TZ = get_localzone()
 
 
-API_URL = os.getenv("DESKIA_API_URL")
+API_URL = os.getenv("BOOKER_API_URL")
 
 
 def _slot_confirmed(state: dict, starts_at: datetime) -> bool:

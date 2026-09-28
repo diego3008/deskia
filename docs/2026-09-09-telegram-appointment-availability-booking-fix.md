@@ -47,17 +47,17 @@ also clears `business_staff_id`.
 `MessageGraphState` carries the following appointment fields across Telegram
 messages:
 
-| Field | Purpose |
-|---|---|
+| Field                | Purpose                                                       |
+| -------------------- | ------------------------------------------------------------- |
 | `appointment_intent` | Active operation: `book_appointment` or `check_availability`. |
-| `current_flow` | Keeps follow-up messages inside `appointment_services`. |
-| `service_name` | Customer-facing service name used for availability lookup. |
-| `starts_at` | Requested timezone-aware appointment start. |
-| `ends_at` | Authoritative service end returned by the availability API. |
-| `service_id` | Authoritative service identifier returned by the API. |
-| `business_staff_id` | Authoritative assigned staff identifier returned by the API. |
-| `pending_question` | The question the next customer message is expected to answer. |
-| `next_action` | The guarded workflow transition that may run next. |
+| `current_flow`       | Keeps follow-up messages inside `appointment_services`.       |
+| `service_name`       | Customer-facing service name used for availability lookup.    |
+| `starts_at`          | Requested timezone-aware appointment start.                   |
+| `ends_at`            | Authoritative service end returned by the availability API.   |
+| `service_id`         | Authoritative service identifier returned by the API.         |
+| `business_staff_id`  | Authoritative assigned staff identifier returned by the API.  |
+| `pending_question`   | The question the next customer message is expected to answer. |
+| `next_action`        | The guarded workflow transition that may run next.            |
 
 `clear_appointment_state()` clears all of these appointment-specific values
 when a flow succeeds, is abandoned, or fails before availability can be
@@ -68,13 +68,13 @@ confirmed. Customer and business identity remain outside this appointment reset.
 `pending_question` and `next_action` are persisted workflow state, not text
 instructions for the language model.
 
-| Situation | `pending_question` | `next_action` | Meaning |
-|---|---|---|---|
-| Service or start time is missing | `appointment_details` | `collect_appointment_details` | Preserve the active intent and collect only missing details. |
-| Booking intent and slot is available | `booking_confirmation` | `confirm_booking` | Wait for the customer's affirmative confirmation. |
-| Availability-only intent and slot is available | `None` | `check_availability` | Report availability without booking; retain the validated slot. |
-| Customer explicitly asks to book that available slot | `None` | `book_appointment` after validation | Promote the intent and book directly without another yes/no question. |
-| Successful booking | `None` | `None` | The appointment flow is complete. |
+| Situation                                            | `pending_question`     | `next_action`                       | Meaning                                                               |
+| ---------------------------------------------------- | ---------------------- | ----------------------------------- | --------------------------------------------------------------------- |
+| Service or start time is missing                     | `appointment_details`  | `collect_appointment_details`       | Preserve the active intent and collect only missing details.          |
+| Booking intent and slot is available                 | `booking_confirmation` | `confirm_booking`                   | Wait for the customer's affirmative confirmation.                     |
+| Availability-only intent and slot is available       | `None`                 | `check_availability`                | Report availability without booking; retain the validated slot.       |
+| Customer explicitly asks to book that available slot | `None`                 | `book_appointment` after validation | Promote the intent and book directly without another yes/no question. |
+| Successful booking                                   | `None`                 | `None`                              | The appointment flow is complete.                                     |
 
 A booking can run only when all of these values are present:
 
@@ -124,16 +124,16 @@ next_action = collect_appointment_details
 `check_availability_node` calls:
 
 ```text
-GET {DESKIA_API_URL}/appointments/validate-date
+GET {BOOKER_API_URL}/appointments/validate-date
 ```
 
 with:
 
 ```json
 {
-  "business_id": "...",
-  "requested_start_date": "2030-09-21T09:00:00-06:00",
-  "service_name": "Limpieza dental"
+    "business_id": "...",
+    "requested_start_date": "2030-09-21T09:00:00-06:00",
+    "service_name": "Limpieza dental"
 }
 ```
 
@@ -157,11 +157,11 @@ An available response must contain:
 
 ```json
 {
-  "available": true,
-  "service_id": "...",
-  "business_staff_id": "...",
-  "starts_at": "2030-09-21T09:00:00-06:00",
-  "ends_at": "2030-09-21T10:00:00-06:00"
+    "available": true,
+    "service_id": "...",
+    "business_staff_id": "...",
+    "starts_at": "2030-09-21T09:00:00-06:00",
+    "ends_at": "2030-09-21T10:00:00-06:00"
 }
 ```
 
@@ -226,19 +226,19 @@ reuse it safely.
 `book_appointment_node` calls:
 
 ```text
-POST {DESKIA_API_URL}/appointments/book
+POST {BOOKER_API_URL}/appointments/book
 ```
 
 with:
 
 ```json
 {
-  "business_id": "...",
-  "customer_id": "...",
-  "service_id": "...",
-  "business_staff_id": "...",
-  "starts_at": "2030-09-21T09:00:00-06:00",
-  "ends_at": "2030-09-21T10:00:00-06:00"
+    "business_id": "...",
+    "customer_id": "...",
+    "service_id": "...",
+    "business_staff_id": "...",
+    "starts_at": "2030-09-21T09:00:00-06:00",
+    "ends_at": "2030-09-21T10:00:00-06:00"
 }
 ```
 
@@ -251,16 +251,16 @@ appointment state and sends a customer-facing confirmation.
 
 ## Failure behavior
 
-| Failure | Result |
-|---|---|
-| Missing service, date, or time before availability | Ask for the missing details. |
-| Naive or invalid start time | Do not call the API; request a valid timezone-aware time. |
-| Availability API error | Do not claim availability; clear unusable appointment state. |
-| Slot unavailable | Clear `service_id`, `business_staff_id`, and `ends_at`; report unavailable. |
-| Malformed available response | Do not present the slot as bookable. |
-| Missing booking field | Do not call the booking API; retain collected state. |
-| Booking HTTP, validation, or JSON error | Do not claim success; retain collected state for retry. |
-| Valid booking response | Clear appointment workflow state and confirm the booking. |
+| Failure                                            | Result                                                                      |
+| -------------------------------------------------- | --------------------------------------------------------------------------- |
+| Missing service, date, or time before availability | Ask for the missing details.                                                |
+| Naive or invalid start time                        | Do not call the API; request a valid timezone-aware time.                   |
+| Availability API error                             | Do not claim availability; clear unusable appointment state.                |
+| Slot unavailable                                   | Clear `service_id`, `business_staff_id`, and `ends_at`; report unavailable. |
+| Malformed available response                       | Do not present the slot as bookable.                                        |
+| Missing booking field                              | Do not call the booking API; retain collected state.                        |
+| Booking HTTP, validation, or JSON error            | Do not claim success; retain collected state for retry.                     |
+| Valid booking response                             | Clear appointment workflow state and confirm the booking.                   |
 
 ## Telegram continuity requirement
 

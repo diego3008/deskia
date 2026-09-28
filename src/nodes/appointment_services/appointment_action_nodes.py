@@ -9,7 +9,7 @@ from src.helpers.workflow import clear_appointment_state
 from src.models.appointments import AppointmentCreate
 from src.state import MessageGraphState
 
-API_URL = os.getenv("DESKIA_API_URL")
+API_URL = os.getenv("BOOKER_API_URL")
 LOCAL_TZ = get_localzone()
 
 

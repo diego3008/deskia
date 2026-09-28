@@ -18,7 +18,7 @@ from src.models.appointments import AppointmentCreate, AppointmentInput
 from src.models.customers import CustomerCreate, CustomerInput
 
 load_dotenv()
-API_URL = os.getenv("DESKIA_API_URL")
+API_URL = os.getenv("BOOKER_API_URL")
 
 @tool
 async def check_available_appointments(

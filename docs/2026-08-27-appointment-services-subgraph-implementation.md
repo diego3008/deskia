@@ -217,14 +217,14 @@ The important behavior spans multiple graph boundaries, so node-only tests were 
 
 ## API contract used by the feature
 
-The code expects `DESKIA_API_URL` and the following backend behavior:
+The code expects `BOOKER_API_URL` and the following backend behavior:
 
-| Operation | Request | Required response behavior |
-|---|---|---|
-| Check availability | `GET /appointments/validate-date` with `business_id`, timezone-aware `requested_start_date` (mapped from state `starts_at`), and `service_name` | `{ "available": true, "service_id": "...", "staff_id": "...", "ends_at": "..." }`, or plain `false` |
-| Book appointment | `POST /appointments/book` with `business_id`, `customer_id`, `service_id`, `staff_id`, `starts_at`, and `ends_at` | Successful status and appointment timing as JSON |
-| Find customer appointment | `GET /appointments/find_customer_appointment` with `customer_id`, `business_id`, and optional `appointment_date` | One appointment object or an empty value |
-| Reschedule appointment | `PATCH /appointments/{appointment_id}/reschedule` with `business_id`, `starts_at`, and `ends_at` | Successful status and the updated appointment as JSON |
+| Operation                 | Request                                                                                                                                         | Required response behavior                                                                          |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Check availability        | `GET /appointments/validate-date` with `business_id`, timezone-aware `requested_start_date` (mapped from state `starts_at`), and `service_name` | `{ "available": true, "service_id": "...", "staff_id": "...", "ends_at": "..." }`, or plain `false` |
+| Book appointment          | `POST /appointments/book` with `business_id`, `customer_id`, `service_id`, `staff_id`, `starts_at`, and `ends_at`                               | Successful status and appointment timing as JSON                                                    |
+| Find customer appointment | `GET /appointments/find_customer_appointment` with `customer_id`, `business_id`, and optional `appointment_date`                                | One appointment object or an empty value                                                            |
+| Reschedule appointment    | `PATCH /appointments/{appointment_id}/reschedule` with `business_id`, `starts_at`, and `ends_at`                                                | Successful status and the updated appointment as JSON                                               |
 
 The backend must atomically re-check slot availability during booking and rescheduling. `confirmed_slot` is a conversational guard against incorrect tool order; it cannot prevent another client from taking the same slot between requests.
 
@@ -270,14 +270,14 @@ Final verification results:
 
 ## Checkpoints
 
-| Commit | Purpose |
-|---|---|
-| `82cf5fb` | Baseline checkpoint before appointment-services work |
-| `0023af6` | Expose validated customer identity to the appointment flow |
-| `b864f5a` | Add the appointment agent and `ToolNode` loop |
-| `3e76342` | Route validated customers into appointment services |
-| `b3d7002` | Complete flows without duplicate assistant responses |
-| `c4cc6b1` | Update booking workflow documentation |
+| Commit    | Purpose                                                        |
+| --------- | -------------------------------------------------------------- |
+| `82cf5fb` | Baseline checkpoint before appointment-services work           |
+| `0023af6` | Expose validated customer identity to the appointment flow     |
+| `b864f5a` | Add the appointment agent and `ToolNode` loop                  |
+| `3e76342` | Route validated customers into appointment services            |
+| `b3d7002` | Complete flows without duplicate assistant responses           |
+| `c4cc6b1` | Update booking workflow documentation                          |
 | `2dfc75b` | Harden exits, API payload validation, and integration coverage |
 
 ## Deliberately deferred

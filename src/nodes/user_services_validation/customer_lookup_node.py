@@ -8,7 +8,7 @@ from src.state import UserValidationState
 
 
 load_dotenv()
-API_URL = os.getenv("DESKIA_API_URL")
+API_URL = os.getenv("BOOKER_API_URL")
 
 
 async def customer_lookup_node(state: UserValidationState) -> dict:
