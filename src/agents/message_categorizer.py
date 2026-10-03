@@ -3,8 +3,7 @@ from dotenv import load_dotenv
 
 from src.structured_outputs import CategorizerMessageOutput
 from ..prompts import MESSAGE_CATEGORIZER_PROMPT
-from langchain_openrouter import ChatOpenRouter
-
+from langchain_openai import ChatOpenAI
 load_dotenv()
 
 
@@ -14,6 +13,6 @@ def message_categorizer_agent():
         input_variables=["message", "history"]
     )
 
-    llm = ChatOpenRouter(model="~openai/gpt-luna-latest", temperature=0)
+    llm = ChatOpenAI(model="gpt-6-luna")
     
     return message_categorizer_prompt | llm.with_structured_output(CategorizerMessageOutput)

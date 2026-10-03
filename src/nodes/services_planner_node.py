@@ -1,7 +1,7 @@
 from src.state import MessageGraphState
 
 from langchain_core.prompts import PromptTemplate
-from langchain_openrouter import ChatOpenRouter
+from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
 
 from src.structured_outputs import PlannerIntentOutput
@@ -29,7 +29,7 @@ def services_planner_agent():
         template=PLANNER_INTENT_PROMPT,
         input_variables=["message", "history"],
     )
-    llm = ChatOpenRouter(model="~anthropic/claude-haiku-latest", temperature=0)
+    llm = ChatOpenAI(model="gpt-6-luna")
     return prompt | llm.with_structured_output(PlannerIntentOutput)
 
 

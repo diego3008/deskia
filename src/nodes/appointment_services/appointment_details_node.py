@@ -2,7 +2,7 @@ from datetime import datetime
 
 from langchain_core.messages import AIMessage
 from langchain_core.prompts import PromptTemplate
-from langchain_openrouter import ChatOpenRouter
+from langchain_openai import ChatOpenAI
 
 from src.helpers import helpers
 from src.models.appointment_details import AppointmentDetails
@@ -39,7 +39,7 @@ def appointment_details_agent():
             "timezone",
         ],
     )
-    llm = ChatOpenRouter(model="~openai/gpt-luna-latest", temperature=0)
+    llm = ChatOpenAI(model="gpt-6-luna")
     return prompt | llm.with_structured_output(AppointmentDetails)
 
 

@@ -3,7 +3,7 @@
 
 from langchain_core.messages import HumanMessage, RemoveMessage, SystemMessage
 from langchain_core.messages.utils import count_tokens_approximately
-from langchain_openrouter import ChatOpenRouter
+from langchain_openai import ChatOpenAI
 
 from src.state import MessageGraphState
 
@@ -49,7 +49,7 @@ def _summarize(previous_summary: str, messages: list) -> str:
         f"Previous summary:\n{previous_summary or 'None.'}\n\n"
         f"Older messages:\n{_format_messages(messages)}"
     )
-    response = ChatOpenRouter(model="google/gemini-3.5-flash-lite", temperature=0).invoke(
+    response = ChatOpenAI(model="gpt-6-luna").invoke(
         [
             SystemMessage(content=SUMMARY_PROMPT),
             HumanMessage(content=prompt),

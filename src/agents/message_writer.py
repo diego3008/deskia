@@ -1,11 +1,11 @@
 from langchain_core.prompts import PromptTemplate
-from langchain_openrouter import ChatOpenRouter
+from langchain_openai import ChatOpenAI
 from src.prompts import MESSAGE_WRITER_PROMPT
 from src.state import OutBoundsMessge
 
 
 def message_writer():
-    llm = ChatOpenRouter(model="~openai/gpt-luna-latest", temperature=0)
+    llm = ChatOpenAI(model="gpt-6-luna")
 
     prompt = PromptTemplate(
         template=MESSAGE_WRITER_PROMPT,

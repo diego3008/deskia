@@ -38,7 +38,7 @@ class CompactContextTests(unittest.TestCase):
 
         with (
             patch(
-                "src.nodes.compact_context_node.ChatOpenRouter",
+                "src.nodes.compact_context_node.ChatOpenAI",
                 FakeSummaryModel,
                 create=True,
             ),

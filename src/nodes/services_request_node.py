@@ -1,4 +1,4 @@
-from langchain_openrouter import ChatOpenRouter
+from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage
 from dotenv import load_dotenv
 
@@ -48,7 +48,7 @@ conversation. Use clean formats for the messages, don't use special characters i
 def services_request_node(state: MessageGraphState):
     business_id = state["business_id"]
 
-    llm = ChatOpenRouter(model="~openai/gpt-luna-latest", temperature=0)
+    llm = ChatOpenAI(model="gpt-6-luna")
     llm_with_tools = llm.bind_tools(tools)
 
     plan = state.get("service_plan")
